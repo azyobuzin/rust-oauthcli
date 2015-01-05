@@ -2,6 +2,10 @@
 name = "oauthcli"
 version = "0.0.1"
 authors = ["azyobuzin <azyobuzin@users.sourceforge.jp>"]
+description = "Implementation of OAuth 1.0 Client"
+repository = "https://github.com/azyobuzin/rust-oauthcli"
+license = "WTFPL"
 
-[dependencies.url]
-git = "https://github.com/servo/rust-url"
+[dependencies]
+time = "*"
+url = "0.2.13"
