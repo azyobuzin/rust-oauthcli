@@ -9,3 +9,4 @@ license = "WTFPL"
 [dependencies]
 time = "*"
 url = "0.2.13"
+rust-crypto = "0.2.10"

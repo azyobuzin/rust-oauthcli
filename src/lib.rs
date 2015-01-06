@@ -1,14 +1,34 @@
 //! Implementation of OAuth 1.0 Client
 
-extern crate core;
+extern crate crypto;
+extern crate serialize;
 extern crate time;
 extern crate url;
 
-use core::cmp::Ordering;
-use std::ascii::AsciiExt;
+use std::ascii::{AsciiExt, OwnedAsciiExt};
+use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::fmt;
 use std::rand::{self, Rng};
+use crypto::{hmac, sha1};
+use crypto::mac::Mac;
+use serialize::base64::{self, ToBase64};
 use url::percent_encoding;
+
+pub enum SignatureMethod {
+    HmacSha1,
+    Plaintext
+}
+impl Copy for SignatureMethod { }
+
+impl fmt::Show for SignatureMethod {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            SignatureMethod::HmacSha1 => "HMAC-SHA1",
+            SignatureMethod::Plaintext => "PLAINTEXT"
+        }.fmt(f)
+    }
+}
 
 #[inline]
 fn percent_encode(input: &str) -> String {
@@ -20,14 +40,13 @@ fn percent_encode(input: &str) -> String {
 }
 
 fn base_string_uri(uri: url::Url) -> String {
-    let scheme = uri.scheme.to_ascii_lowercase();
+    let scheme = uri.scheme.into_ascii_lowercase();
     assert!(match scheme.as_slice()
         { "http" => true, "https" => true, _ => false });
-    let mut result = scheme.clone();
-    result.push_str("://");
+    let mut result = format!("{}://", scheme);
     match uri.scheme_data {
         url::SchemeData::Relative(data) => {
-            result.push_str(data.host.to_string().to_ascii_lowercase().as_slice());
+            result.push_str(data.host.to_string().into_ascii_lowercase().as_slice());
             match data.port {
                 Some(p) => {
                     if p != data.default_port.unwrap() {
@@ -35,7 +54,7 @@ fn base_string_uri(uri: url::Url) -> String {
                         result.push_str(p.to_string().as_slice());
                     }
                  },
-                 None => { }
+                 None => ()
             }
             result.push_str(data.serialize_path().as_slice());
         },
@@ -45,9 +64,9 @@ fn base_string_uri(uri: url::Url) -> String {
 }
 
 fn normalize_parameters<'a, P>(params: P) -> String
-        where P: Iterator<Item = (&'a str, &'a str)> {
+        where P: Iterator<Item = &'a (String, String)> {
     let mut mutparams: Vec<_> = params
-        .map(|x| (percent_encode(x.0), percent_encode(x.1)))
+        .map(|x| (percent_encode(x.0.as_slice()), percent_encode(x.1.as_slice())))
         .collect();
     mutparams.sort_by(|a, b| {
         match a.0.cmp(&b.0) {
@@ -63,42 +82,114 @@ fn normalize_parameters<'a, P>(params: P) -> String
         .connect("&")
 }
 
-fn timestamp() -> String {
+#[inline]
+pub fn timestamp() -> String {
     time::now_utc().to_timespec().sec.to_string()
 }
 
-fn nonce() -> String {
+#[inline]
+pub fn nonce() -> String {
     rand::thread_rng()
         .gen_ascii_chars()
         .take(42)
         .collect()
 }
 
-fn oauth_parameters<'a>(realm: Option<&'a str>, consumer_key: &'a str,
-        token: Option<&'a str>, timestamp: &'a str, nonce: &'a str,
-        callback: Option<&'a str>, verifier: Option<&'a str>)
-        -> HashMap<&'a str, &'a str> {
-    let mut h = HashMap::<&'a str, &'a str>::new();
-    match realm { Some(x) => { h.insert("realm", x); }, None => { } }
+#[inline]
+fn oauth_parameters(realm: Option<String>, consumer_key: String,
+        token: Option<String>, signature_method: SignatureMethod,
+        timestamp: String, nonce: String, callback: Option<String>,
+        verifier: Option<String>)
+        -> HashMap<&'static str, String> {
+    let mut h = HashMap::new();
+    match realm { Some(x) => { h.insert("realm", x); }, None => () }
     h.insert("oauth_consumer_key", consumer_key);
-    match token { Some(x) => { h.insert("oauth_token", x); }, None => { } }
-    h.insert("oauth_signature_method", "HMAC-SHA1"); // want PLAINTEXT?
+    match token { Some(x) => { h.insert("oauth_token", x); }, None => () }
+    h.insert("oauth_signature_method", signature_method.to_string());
     h.insert("oauth_timestamp", timestamp);
     h.insert("oauth_nonce", nonce);
-    match callback { Some(x) => { h.insert("oauth_callback", x); }, None => { } }
-    match verifier { Some(x) => { h.insert("oauth_verifier", x); }, None => { } }
+    match callback { Some(x) => { h.insert("oauth_callback", x); }, None => () }
+    match verifier { Some(x) => { h.insert("oauth_verifier", x); }, None => () }
+    // oauth_version is optional
     h
 }
 
-fn signature_base_string<'a, P>(method: &'a str, uri: url::Url,
-        params: P, oauth_params: HashMap<&'a str, &'a str>)
-        -> String where P: Iterator<Item = (&'a str, &'a str)> {
-    let mut mutparams: Vec<(&'a str, &'a str)> = params.collect();
-    for (key, val) in oauth_params.iter() {
-        mutparams.push((*key, *val))
+fn signature_base_string<'a, P>(method: &str, uri: url::Url,
+        params: P, mut oauth_params: HashMap<&'static str, String>)
+        -> String where P: Iterator<Item = &'a (String, String)> {
+    let mut mutparams: Vec<(String, String)> = params
+        .map(|x| (x.0.clone(), x.1.clone())).collect();
+    oauth_params.remove("realm");
+    mutparams.extend(oauth_params.iter()
+        .map(|(key, val)| (key.to_string(), val.clone())));
+    let query = match uri.query_pairs() {
+        Some(pairs) => pairs,
+        None => Vec::new()
+    };
+    mutparams.extend(query.iter().map(|x| (x.0.clone(), x.1.clone())));
+    format!(
+        "{}&{}&{}",
+        method.to_ascii_uppercase(),
+        percent_encode(base_string_uri(uri).as_slice()),
+        percent_encode(normalize_parameters(mutparams.iter()).as_slice())
+    )
+}
+
+fn signature<'a>(base_string: String, signature_method: SignatureMethod,
+        consumer_secret: String, token_secret: Option<String>) -> String {
+    let ts = match token_secret {
+        Some(x) => percent_encode(x.as_slice()),
+        None => "".to_string()
+    };
+    let key = format!("{}&{}", percent_encode(consumer_secret.as_slice()), ts);
+    match signature_method {
+        SignatureMethod::HmacSha1 => {
+            let mut h = hmac::Hmac::new(sha1::Sha1::new(), key.as_bytes());
+            h.input(base_string.as_bytes());
+            h.result().code().to_base64(base64::Config {
+                char_set: serialize::base64::CharacterSet::Standard,
+                newline: serialize::base64::Newline::LF,
+                pad: true,
+                line_length: None
+            })
+        },
+        SignatureMethod::Plaintext => key
     }
-    [method.to_ascii_uppercase(), percent_encode(base_string_uri(uri).as_slice()),
-        percent_encode(normalize_parameters(mutparams.into_iter()).as_slice())].connect("&")
+}
+
+pub fn protocol_parameters<'a, P>(method: &str, uri: url::Url, realm: Option<String>,
+        consumer_key: String, consumer_secret: String, token: Option<String>,
+        token_secret: Option<String>, signature_method: SignatureMethod,
+        timestamp: String, nonce: String, callback: Option<String>,
+        verifier: Option<String>, params: P)
+        -> HashMap<&'static str, String>
+        where P: Iterator<Item = &'a (String, String)> {
+    let mut oauth_params = oauth_parameters(
+        realm, consumer_key, token, signature_method, timestamp, nonce,
+        callback, verifier);
+    let tmp = oauth_params.clone();
+    oauth_params.insert("oauth_signature", signature(
+        signature_base_string(method, uri, params, tmp),
+        signature_method, consumer_secret, token_secret
+    ));
+    oauth_params
+}
+
+pub fn authorization_header<'a, P>(method: &str, uri: url::Url, realm: Option<String>,
+        consumer_key: String, consumer_secret: String, token: Option<String>,
+        token_secret: Option<String>, signature_method: SignatureMethod,
+        timestamp: String, nonce: String, callback: Option<String>,
+        verifier: Option<String>, params: P)
+        -> String
+        where P: Iterator<Item = &'a (String, String)> {
+    let p = protocol_parameters(method, uri, realm, consumer_key, consumer_secret,
+        token, token_secret, signature_method, timestamp, nonce, callback, verifier, params);
+    format!("OAuth {}", p.iter()
+        .map(|(key, val)| format!("{}=\"{}\"",
+            percent_encode(*key), percent_encode(val.as_slice())))
+        .collect::<Vec<String>>()
+        .connect(",")
+    )
 }
 
 #[cfg(test)]
