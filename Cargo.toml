@@ -4,9 +4,11 @@ version = "0.0.1"
 authors = ["azyobuzin <azyobuzin@users.sourceforge.jp>"]
 description = "Implementation of OAuth 1.0 Client without curl dependency"
 repository = "https://github.com/azyobuzin/rust-oauthcli"
+keywords = ["oauth"]
 license = "WTFPL"
 
 [dependencies]
 time = "*"
 url = "*"
 rust-crypto = "*"
+rustc-serialize = "*"

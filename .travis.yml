@@ -1,1 +1,10 @@
 language: rust
+
+notifications:
+  email: false
+env:
+  global:
+    - secure: p2poIJ4MwHBQbGHUEAlv5dQsZ/VrkOCz+jwlXyf0KIx9rfLf7ZHwexM9z6i8UtKOdUsvoPgD84p0xZIqByfOgkST5mi38FyzVt9Ns9aEoy+Rbr1vNnn2eHEZaeKyQ+qEr9+Edn1G+NgpC5vQ2ZojFbuJm/KYlsYALtCP6CZbtRw=
+
+after_script:
+  - curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh

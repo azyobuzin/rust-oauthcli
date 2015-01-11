@@ -1,5 +1,5 @@
 use url::Url;
-use super::{SignatureMethod, percent_encode, base_string_uri, normalize_parameters,
+use super::{SignatureMethod, percent_encode, base_string_url, normalize_parameters,
     oauth_parameters, signature_base_string, signature};
 
 #[test]
@@ -35,15 +35,15 @@ fn percent_encode_test() {
 }
 
 #[test]
-fn base_string_uri_test() {
+fn base_string_url_test() {
     assert_eq!(
-        base_string_uri(
+        base_string_url(
             Url::parse("HTTP://EXAMPLE.COM:80/r%20v/X?id=123").unwrap()
         ).as_slice(),
         "http://example.com/r%20v/X"
     );
     assert_eq!(
-        base_string_uri(
+        base_string_url(
             Url::parse("https://www.example.net:8080/?q=1").unwrap()
         ).as_slice(),
         "https://www.example.net:8080/"

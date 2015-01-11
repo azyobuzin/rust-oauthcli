@@ -1,7 +1,7 @@
 //! Implementation of OAuth 1.0 Client
 
 extern crate crypto;
-extern crate serialize;
+extern crate "rustc-serialize" as serialize;
 extern crate time;
 extern crate url;
 
@@ -142,7 +142,6 @@ fn signature<'a>(base_string: String, signature_method: SignatureMethod,
         None => "".to_string()
     };
     let key = format!("{}&{}", percent_encode(consumer_secret.as_slice()), ts);
-    println!("{}", base_string);
     match signature_method {
         SignatureMethod::HmacSha1 => {
             let mut h = hmac::Hmac::new(sha1::Sha1::new(), key.as_bytes());
