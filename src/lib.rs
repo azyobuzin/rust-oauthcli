@@ -13,7 +13,7 @@ use std::rand::{self, Rng};
 use crypto::{hmac, sha1};
 use crypto::mac::Mac;
 use serialize::base64::{self, ToBase64};
-use url::percent_encoding;
+use url::{percent_encoding, Url};
 
 pub enum SignatureMethod {
     HmacSha1,
@@ -21,7 +21,7 @@ pub enum SignatureMethod {
 }
 impl Copy for SignatureMethod { }
 
-impl fmt::Show for SignatureMethod {
+impl fmt::String for SignatureMethod {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             SignatureMethod::HmacSha1 => "HMAC-SHA1",
@@ -39,12 +39,12 @@ fn percent_encode(input: &str) -> String {
     )
 }
 
-fn base_string_uri(uri: url::Url) -> String {
-    let scheme = uri.scheme.into_ascii_lowercase();
+fn base_string_url(url: Url) -> String {
+    let scheme = url.scheme.into_ascii_lowercase();
     assert!(match scheme.as_slice()
         { "http" => true, "https" => true, _ => false });
     let mut result = format!("{}://", scheme);
-    match uri.scheme_data {
+    match url.scheme_data {
         url::SchemeData::Relative(data) => {
             result.push_str(data.host.to_string().into_ascii_lowercase().as_slice());
             match data.port {
@@ -96,25 +96,25 @@ pub fn nonce() -> String {
 }
 
 #[inline]
-fn oauth_parameters(realm: Option<String>, consumer_key: String,
-        token: Option<String>, signature_method: SignatureMethod,
-        timestamp: String, nonce: String, callback: Option<String>,
-        verifier: Option<String>)
+fn oauth_parameters(realm: Option<&str>, consumer_key: &str,
+        token: Option<&str>, signature_method: SignatureMethod,
+        timestamp: String, nonce: String, callback: Option<&str>,
+        verifier: Option<&str>)
         -> HashMap<&'static str, String> {
     let mut h = HashMap::new();
-    match realm { Some(x) => { h.insert("realm", x); }, None => () }
-    h.insert("oauth_consumer_key", consumer_key);
-    match token { Some(x) => { h.insert("oauth_token", x); }, None => () }
+    match realm { Some(x) => { h.insert("realm", x.to_string()); }, None => () }
+    h.insert("oauth_consumer_key", consumer_key.to_string());
+    match token { Some(x) => { h.insert("oauth_token", x.to_string()); }, None => () }
     h.insert("oauth_signature_method", signature_method.to_string());
     h.insert("oauth_timestamp", timestamp);
     h.insert("oauth_nonce", nonce);
-    match callback { Some(x) => { h.insert("oauth_callback", x); }, None => () }
-    match verifier { Some(x) => { h.insert("oauth_verifier", x); }, None => () }
+    match callback { Some(x) => { h.insert("oauth_callback", x.to_string()); }, None => () }
+    match verifier { Some(x) => { h.insert("oauth_verifier", x.to_string()); }, None => () }
     // oauth_version is optional
     h
 }
 
-fn signature_base_string<'a, P>(method: &str, uri: url::Url,
+fn signature_base_string<'a, P>(method: &str, url: Url,
         params: P, mut oauth_params: HashMap<&'static str, String>)
         -> String where P: Iterator<Item = &'a (String, String)> {
     let mut mutparams: Vec<(String, String)> = params
@@ -122,7 +122,7 @@ fn signature_base_string<'a, P>(method: &str, uri: url::Url,
     oauth_params.remove("realm");
     mutparams.extend(oauth_params.iter()
         .map(|(key, val)| (key.to_string(), val.clone())));
-    let query = match uri.query_pairs() {
+    let query = match url.query_pairs() {
         Some(pairs) => pairs,
         None => Vec::new()
     };
@@ -130,18 +130,19 @@ fn signature_base_string<'a, P>(method: &str, uri: url::Url,
     format!(
         "{}&{}&{}",
         method.to_ascii_uppercase(),
-        percent_encode(base_string_uri(uri).as_slice()),
+        percent_encode(base_string_url(url).as_slice()),
         percent_encode(normalize_parameters(mutparams.iter()).as_slice())
     )
 }
 
 fn signature<'a>(base_string: String, signature_method: SignatureMethod,
-        consumer_secret: String, token_secret: Option<String>) -> String {
+        consumer_secret: &str, token_secret: Option<&str>) -> String {
     let ts = match token_secret {
         Some(x) => percent_encode(x.as_slice()),
         None => "".to_string()
     };
     let key = format!("{}&{}", percent_encode(consumer_secret.as_slice()), ts);
+    println!("{}", base_string);
     match signature_method {
         SignatureMethod::HmacSha1 => {
             let mut h = hmac::Hmac::new(sha1::Sha1::new(), key.as_bytes());
@@ -157,11 +158,11 @@ fn signature<'a>(base_string: String, signature_method: SignatureMethod,
     }
 }
 
-pub fn protocol_parameters<'a, P>(method: &str, uri: url::Url, realm: Option<String>,
-        consumer_key: String, consumer_secret: String, token: Option<String>,
-        token_secret: Option<String>, signature_method: SignatureMethod,
-        timestamp: String, nonce: String, callback: Option<String>,
-        verifier: Option<String>, params: P)
+pub fn protocol_parameters<'a, P>(method: &str, url: Url, realm: Option<&str>,
+        consumer_key: &str, consumer_secret: &str, token: Option<&str>,
+        token_secret: Option<&str>, signature_method: SignatureMethod,
+        timestamp: String, nonce: String, callback: Option<&str>,
+        verifier: Option<&str>, params: P)
         -> HashMap<&'static str, String>
         where P: Iterator<Item = &'a (String, String)> {
     let mut oauth_params = oauth_parameters(
@@ -169,20 +170,20 @@ pub fn protocol_parameters<'a, P>(method: &str, uri: url::Url, realm: Option<Str
         callback, verifier);
     let tmp = oauth_params.clone();
     oauth_params.insert("oauth_signature", signature(
-        signature_base_string(method, uri, params, tmp),
+        signature_base_string(method, url, params, tmp),
         signature_method, consumer_secret, token_secret
     ));
     oauth_params
 }
 
-pub fn authorization_header<'a, P>(method: &str, uri: url::Url, realm: Option<String>,
-        consumer_key: String, consumer_secret: String, token: Option<String>,
-        token_secret: Option<String>, signature_method: SignatureMethod,
-        timestamp: String, nonce: String, callback: Option<String>,
-        verifier: Option<String>, params: P)
+pub fn authorization_header<'a, P>(method: &str, url: Url, realm: Option<&str>,
+        consumer_key: &str, consumer_secret: &str, token: Option<&str>,
+        token_secret: Option<&str>, signature_method: SignatureMethod,
+        timestamp: String, nonce: String, callback: Option<&str>,
+        verifier: Option<&str>, params: P)
         -> String
         where P: Iterator<Item = &'a (String, String)> {
-    let p = protocol_parameters(method, uri, realm, consumer_key, consumer_secret,
+    let p = protocol_parameters(method, url, realm, consumer_key, consumer_secret,
         token, token_secret, signature_method, timestamp, nonce, callback, verifier, params);
     format!("OAuth {}", p.iter()
         .map(|(key, val)| format!("{}=\"{}\"",
