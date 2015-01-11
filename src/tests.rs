@@ -1,6 +1,6 @@
 use url::Url;
 use super::{SignatureMethod, percent_encode, base_string_url, normalize_parameters,
-    oauth_parameters, signature_base_string, signature};
+    oauth_parameters, signature_base_string/*, signature*/};
 
 #[test]
 fn signature_method_test() {
@@ -53,9 +53,9 @@ fn base_string_url_test() {
 const URI: &'static str = "http://example.com/request?b5=%3D%253D&a3=a&c%40=&a2=r%20b";
 const REALM: &'static str = "Example";
 const CONSUMER_KEY: &'static str = "9djdj82h48djs9d2";
-const CONSUMER_SECRET: &'static str = "j49sk3j29djd";
+//const CONSUMER_SECRET: &'static str = "j49sk3j29djd";
 const TOKEN: &'static str = "kkk9d7dh3k39sjv7";
-const TOKEN_SECRET: &'static str = "dh893hdasih9";
+//const TOKEN_SECRET: &'static str = "dh893hdasih9";
 const TIMESTAMP: &'static str = "137131201";
 const NONCE: &'static str = "7d8f3e4a";
 

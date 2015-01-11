@@ -1,5 +1,7 @@
 //! Yet Another OAuth 1.0 Client Library for Rust
 
+#![allow(unstable)]
+
 extern crate crypto;
 extern crate "rustc-serialize" as serialize;
 extern crate time;
@@ -15,11 +17,15 @@ use crypto::mac::Mac;
 use serialize::base64::{self, ToBase64};
 use url::{percent_encoding, Url};
 
+/// Available `oauth_signature_method` types.
+#[derive(Copy, Show)]
+#[stable]
 pub enum SignatureMethod {
+    /// HMAC-SHA1
     HmacSha1,
+    /// PLAINTEXT
     Plaintext
 }
-impl Copy for SignatureMethod { }
 
 impl fmt::String for SignatureMethod {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -82,11 +88,15 @@ fn normalize_parameters<'a, P>(params: P) -> String
         .connect("&")
 }
 
+/// Generate a string for `oauth_timestamp`.
+#[stable]
 #[inline]
 pub fn timestamp() -> String {
     time::now_utc().to_timespec().sec.to_string()
 }
 
+/// Generate a string for `oauth_nonce`.
+#[stable]
 #[inline]
 pub fn nonce() -> String {
     rand::thread_rng()
@@ -157,6 +167,8 @@ fn signature<'a>(base_string: String, signature_method: SignatureMethod,
     }
 }
 
+/// Generate OAuth parameters set.
+/// The return value contains elements whose key is `"oauth_foo"`.
 pub fn protocol_parameters<'a, P>(method: &str, url: Url, realm: Option<&str>,
         consumer_key: &str, consumer_secret: &str, token: Option<&str>,
         token_secret: Option<&str>, signature_method: SignatureMethod,
@@ -175,6 +187,9 @@ pub fn protocol_parameters<'a, P>(method: &str, url: Url, realm: Option<&str>,
     oauth_params
 }
 
+
+/// Generate `Authorization` header for OAuth.
+/// The return value starts with `"OAuth "`.
 pub fn authorization_header<'a, P>(method: &str, url: Url, realm: Option<&str>,
         consumer_key: &str, consumer_secret: &str, token: Option<&str>,
         token_secret: Option<&str>, signature_method: SignatureMethod,

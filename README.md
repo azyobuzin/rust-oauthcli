@@ -26,4 +26,6 @@ let header =
     None, // oauth_verifier
     vec![("status".to_string(), "hello".to_string())].iter()
   );
+
+// header = "OAuth ......"
 ```
