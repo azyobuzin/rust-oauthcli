@@ -1,5 +1,5 @@
 # oauthcli
-Yet Another OAuth Client Library for Rust
+Yet Another OAuth 1.0 Client Library for Rust
 
 # Features
 - RFC 5849 implementation

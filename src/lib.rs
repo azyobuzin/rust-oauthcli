@@ -1,4 +1,4 @@
-//! Implementation of OAuth 1.0 Client
+//! Yet Another OAuth 1.0 Client Library for Rust
 
 extern crate crypto;
 extern crate "rustc-serialize" as serialize;
