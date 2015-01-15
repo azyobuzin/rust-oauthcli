@@ -69,8 +69,8 @@ fn base_string_url(url: Url) -> String {
     result
 }
 
-fn normalize_parameters<'a, P>(params: P) -> String
-        where P: Iterator<Item = &'a (String, String)> {
+fn normalize_parameters<P>(params: P) -> String
+        where P: Iterator<Item = (String, String)> {
     let mut mutparams: Vec<_> = params
         .map(|x| (percent_encode(x.0.as_slice()), percent_encode(x.1.as_slice())))
         .collect();
@@ -124,9 +124,9 @@ fn oauth_parameters(realm: Option<&str>, consumer_key: &str,
     h
 }
 
-fn signature_base_string<'a, P>(method: &str, url: Url,
+fn signature_base_string<P>(method: &str, url: Url,
         params: P, mut oauth_params: HashMap<&'static str, String>)
-        -> String where P: Iterator<Item = &'a (String, String)> {
+        -> String where P: Iterator<Item = (String, String)> {
     let mut mutparams: Vec<(String, String)> = params
         .map(|x| (x.0.clone(), x.1.clone())).collect();
     oauth_params.remove("realm");
@@ -141,11 +141,11 @@ fn signature_base_string<'a, P>(method: &str, url: Url,
         "{}&{}&{}",
         method.to_ascii_uppercase(),
         percent_encode(base_string_url(url).as_slice()),
-        percent_encode(normalize_parameters(mutparams.iter()).as_slice())
+        percent_encode(normalize_parameters(mutparams.into_iter()).as_slice())
     )
 }
 
-fn signature<'a>(base_string: String, signature_method: SignatureMethod,
+fn signature(base_string: String, signature_method: SignatureMethod,
         consumer_secret: &str, token_secret: Option<&str>) -> String {
     let ts = match token_secret {
         Some(x) => percent_encode(x.as_slice()),
@@ -169,13 +169,13 @@ fn signature<'a>(base_string: String, signature_method: SignatureMethod,
 
 /// Generate OAuth parameters set.
 /// The return value contains elements whose key is `"oauth_foo"`.
-pub fn protocol_parameters<'a, P>(method: &str, url: Url, realm: Option<&str>,
+pub fn protocol_parameters<P>(method: &str, url: Url, realm: Option<&str>,
         consumer_key: &str, consumer_secret: &str, token: Option<&str>,
         token_secret: Option<&str>, signature_method: SignatureMethod,
         timestamp: String, nonce: String, callback: Option<&str>,
         verifier: Option<&str>, params: P)
         -> HashMap<&'static str, String>
-        where P: Iterator<Item = &'a (String, String)> {
+        where P: Iterator<Item = (String, String)> {
     let mut oauth_params = oauth_parameters(
         realm, consumer_key, token, signature_method, timestamp, nonce,
         callback, verifier);
@@ -190,13 +190,13 @@ pub fn protocol_parameters<'a, P>(method: &str, url: Url, realm: Option<&str>,
 
 /// Generate `Authorization` header for OAuth.
 /// The return value starts with `"OAuth "`.
-pub fn authorization_header<'a, P>(method: &str, url: Url, realm: Option<&str>,
+pub fn authorization_header<P>(method: &str, url: Url, realm: Option<&str>,
         consumer_key: &str, consumer_secret: &str, token: Option<&str>,
         token_secret: Option<&str>, signature_method: SignatureMethod,
         timestamp: String, nonce: String, callback: Option<&str>,
         verifier: Option<&str>, params: P)
         -> String
-        where P: Iterator<Item = &'a (String, String)> {
+        where P: Iterator<Item = (String, String)> {
     let p = protocol_parameters(method, url, realm, consumer_key, consumer_secret,
         token, token_secret, signature_method, timestamp, nonce, callback, verifier, params);
     format!("OAuth {}", p.iter()

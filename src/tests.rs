@@ -1,3 +1,4 @@
+use std::vec::IntoIter;
 use url::Url;
 use super::{SignatureMethod, percent_encode, base_string_url, normalize_parameters,
     oauth_parameters, signature_base_string/*, signature*/};
@@ -59,7 +60,7 @@ const TOKEN: &'static str = "kkk9d7dh3k39sjv7";
 const TIMESTAMP: &'static str = "137131201";
 const NONCE: &'static str = "7d8f3e4a";
 
-fn params() -> Vec<(String, String)> {
+fn params() -> IntoIter<(String, String)> {
     vec![
         ("b5".to_string(), "=%3D".to_string()),
         ("a3".to_string(), "a".to_string()),
@@ -72,13 +73,13 @@ fn params() -> Vec<(String, String)> {
         ("oauth_nonce".to_string(), NONCE.to_string()),
         ("c2".to_string(), "".to_string()),
         ("a3".to_string(), "2 q".to_string())
-    ]
+    ].into_iter()
 }
 
 #[test]
 fn normalize_parameters_test() {
     assert_eq!(
-        normalize_parameters(params().iter()).as_slice(),
+        normalize_parameters(params()).as_slice(),
         concat!(
             "a2=r%20b&a3=2%20q&a3=a&b5=%3D%253D&c%40=&c2=&oauth_consumer_key=9dj",
             "dj82h48djs9d2&oauth_nonce=7d8f3e4a&oauth_signature_method=HMAC-SHA1",
@@ -91,7 +92,7 @@ fn get_signature_base_string() -> String {
     signature_base_string(
         "post",
         Url::parse(URI).unwrap(),
-        params().iter().skip(9),
+        params().skip(9),
         oauth_parameters(Some(REALM), CONSUMER_KEY, Some(TOKEN),
             SignatureMethod::HmacSha1, TIMESTAMP.to_string(),
             NONCE.to_string(), None, None)
