@@ -1,6 +1,7 @@
 //! Yet Another OAuth 1.0 Client Library for Rust
 
-#![allow(unstable)]
+#![allow(unstable, unused_must_use)]
+#![unstable]
 
 extern crate crypto;
 extern crate "rustc-serialize" as serialize;
@@ -10,7 +11,7 @@ extern crate url;
 use std::ascii::{AsciiExt, OwnedAsciiExt};
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::fmt;
+use std::fmt::{self, Writer};
 use std::rand::{self, Rng};
 use crypto::{hmac, sha1};
 use crypto::mac::Mac;
@@ -18,21 +19,23 @@ use serialize::base64::{self, ToBase64};
 use url::{percent_encoding, Url};
 
 /// Available `oauth_signature_method` types.
-#[derive(Copy, Show)]
+#[derive(Copy, Debug, PartialEq, Eq)]
 #[stable]
 pub enum SignatureMethod {
     /// HMAC-SHA1
+    #[stable]
     HmacSha1,
     /// PLAINTEXT
+    #[stable]
     Plaintext
 }
 
-impl fmt::String for SignatureMethod {
+impl fmt::Display for SignatureMethod {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
+        f.write_str(match *self {
             SignatureMethod::HmacSha1 => "HMAC-SHA1",
             SignatureMethod::Plaintext => "PLAINTEXT"
-        }.fmt(f)
+        })
     }
 }
 
@@ -47,22 +50,19 @@ fn percent_encode(input: &str) -> String {
 
 fn base_string_url(url: Url) -> String {
     let scheme = url.scheme.into_ascii_lowercase();
-    assert!(match scheme.as_slice()
+    assert!(match &scheme[]
         { "http" => true, "https" => true, _ => false });
     let mut result = format!("{}://", scheme);
     match url.scheme_data {
         url::SchemeData::Relative(data) => {
-            result.push_str(data.host.to_string().into_ascii_lowercase().as_slice());
+            result.push_str(&data.host.to_string().into_ascii_lowercase()[]);
             match data.port {
-                Some(p) => {
-                    if p != data.default_port.unwrap() {
-                        result.push(':');
-                        result.push_str(p.to_string().as_slice());
-                    }
+                Some(p) => if p != data.default_port.unwrap() {
+                    write!(&mut result, ":{}", p);
                  },
                  None => ()
             }
-            result.push_str(data.serialize_path().as_slice());
+            result.push_str(&data.serialize_path()[]);
         },
         url::SchemeData::NonRelative(_) => panic!("scheme_data is NonRelative")
     }
@@ -72,7 +72,7 @@ fn base_string_url(url: Url) -> String {
 fn normalize_parameters<P>(params: P) -> String
         where P: Iterator<Item = (String, String)> {
     let mut mutparams: Vec<_> = params
-        .map(|x| (percent_encode(x.0.as_slice()), percent_encode(x.1.as_slice())))
+        .map(|x| (percent_encode(&x.0[]), percent_encode(&x.1[])))
         .collect();
     mutparams.sort_by(|a, b| {
         match a.0.cmp(&b.0) {
@@ -140,18 +140,18 @@ fn signature_base_string<P>(method: &str, url: Url,
     format!(
         "{}&{}&{}",
         method.to_ascii_uppercase(),
-        percent_encode(base_string_url(url).as_slice()),
-        percent_encode(normalize_parameters(mutparams.into_iter()).as_slice())
+        percent_encode(&base_string_url(url)[]),
+        percent_encode(&normalize_parameters(mutparams.into_iter())[])
     )
 }
 
 fn signature(base_string: String, signature_method: SignatureMethod,
         consumer_secret: &str, token_secret: Option<&str>) -> String {
     let ts = match token_secret {
-        Some(x) => percent_encode(x.as_slice()),
+        Some(x) => percent_encode(x),
         None => "".to_string()
     };
-    let key = format!("{}&{}", percent_encode(consumer_secret.as_slice()), ts);
+    let key = format!("{}&{}", percent_encode(consumer_secret), ts);
     match signature_method {
         SignatureMethod::HmacSha1 => {
             let mut h = hmac::Hmac::new(sha1::Sha1::new(), key.as_bytes());
@@ -169,6 +169,7 @@ fn signature(base_string: String, signature_method: SignatureMethod,
 
 /// Generate OAuth parameters set.
 /// The return value contains elements whose key is `"oauth_foo"`.
+#[unstable]
 pub fn protocol_parameters<P>(method: &str, url: Url, realm: Option<&str>,
         consumer_key: &str, consumer_secret: &str, token: Option<&str>,
         token_secret: Option<&str>, signature_method: SignatureMethod,
@@ -190,6 +191,7 @@ pub fn protocol_parameters<P>(method: &str, url: Url, realm: Option<&str>,
 
 /// Generate `Authorization` header for OAuth.
 /// The return value starts with `"OAuth "`.
+#[unstable]
 pub fn authorization_header<P>(method: &str, url: Url, realm: Option<&str>,
         consumer_key: &str, consumer_secret: &str, token: Option<&str>,
         token_secret: Option<&str>, signature_method: SignatureMethod,
