@@ -1,6 +1,7 @@
 //! Yet Another OAuth 1.0 Client Library for Rust
 
-#![allow(unstable, unused_must_use)]
+#![allow(unused_must_use)]
+#![feature(collections, core, rand, std_misc)]
 #![unstable]
 
 extern crate crypto;
@@ -12,6 +13,7 @@ use std::ascii::{AsciiExt, OwnedAsciiExt};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{self, Writer};
+use std::mem;
 use std::rand::{self, Rng};
 use crypto::{hmac, sha1};
 use crypto::mac::Mac;
@@ -39,13 +41,49 @@ impl fmt::Display for SignatureMethod {
     }
 }
 
+static ENCODE_SET_MAP: &'static [&'static str; 256] = &[
+    "%00", "%01", "%02", "%03", "%04", "%05", "%06", "%07",
+    "%08", "%09", "%0A", "%0B", "%0C", "%0D", "%0E", "%0F",
+    "%10", "%11", "%12", "%13", "%14", "%15", "%16", "%17",
+    "%18", "%19", "%1A", "%1B", "%1C", "%1D", "%1E", "%1F",
+    "%20", "%21", "%22", "%23", "%24", "%25", "%26", "%27",
+    "%28", "%29", "%2A", "%2B", "%2C", "-", ".", "%2F",
+    "0", "1", "2", "3", "4", "5", "6", "7",
+    "8", "9", "%3A", "%3B", "%3C", "%3D", "%3E", "%3F",
+    "%40", "A", "B", "C", "D", "E", "F", "G",
+    "H", "I", "J", "K", "L", "M", "N", "O",
+    "P", "Q", "R", "S", "T", "U", "V", "W",
+    "X", "Y", "Z", "%5B", "%5C", "%5D", "%5E", "_",
+    "%60", "a", "b", "c", "d", "e", "f", "g",
+    "h", "i", "j", "k", "l", "m", "n", "o",
+    "p", "q", "r", "s", "t", "u", "v", "w",
+    "x", "y", "z", "%7B", "%7C", "%7D", "~", "%7F",
+    "%80", "%81", "%82", "%83", "%84", "%85", "%86", "%87",
+    "%88", "%89", "%8A", "%8B", "%8C", "%8D", "%8E", "%8F",
+    "%90", "%91", "%92", "%93", "%94", "%95", "%96", "%97",
+    "%98", "%99", "%9A", "%9B", "%9C", "%9D", "%9E", "%9F",
+    "%A0", "%A1", "%A2", "%A3", "%A4", "%A5", "%A6", "%A7",
+    "%A8", "%A9", "%AA", "%AB", "%AC", "%AD", "%AE", "%AF",
+    "%B0", "%B1", "%B2", "%B3", "%B4", "%B5", "%B6", "%B7",
+    "%B8", "%B9", "%BA", "%BB", "%BC", "%BD", "%BE", "%BF",
+    "%C0", "%C1", "%C2", "%C3", "%C4", "%C5", "%C6", "%C7",
+    "%C8", "%C9", "%CA", "%CB", "%CC", "%CD", "%CE", "%CF",
+    "%D0", "%D1", "%D2", "%D3", "%D4", "%D5", "%D6", "%D7",
+    "%D8", "%D9", "%DA", "%DB", "%DC", "%DD", "%DE", "%DF",
+    "%E0", "%E1", "%E2", "%E3", "%E4", "%E5", "%E6", "%E7",
+    "%E8", "%E9", "%EA", "%EB", "%EC", "%ED", "%EE", "%EF",
+    "%F0", "%F1", "%F2", "%F3", "%F4", "%F5", "%F6", "%F7",
+    "%F8", "%F9", "%FA", "%FB", "%FC", "%FD", "%FE", "%FF",
+];
+
+/// Return the EncodeSet of [RFC 5849 section 3.6](http://tools.ietf.org/html/rfc5849#section-3.6).
+pub fn encode_set() -> percent_encoding::EncodeSet {
+    unsafe { mem::transmute(ENCODE_SET_MAP) }
+}
+
 #[inline]
 fn percent_encode(input: &str) -> String {
-    // ALPHA, DIGIT, '-', '.', '_', '~'
-    percent_encoding::utf8_percent_encode(
-        input,
-        percent_encoding::FORM_URLENCODED_ENCODE_SET
-    )
+    percent_encoding::utf8_percent_encode(input, encode_set())
 }
 
 fn base_string_url(url: Url) -> String {
@@ -203,7 +241,7 @@ pub fn authorization_header<P>(method: &str, url: Url, realm: Option<&str>,
         token, token_secret, signature_method, timestamp, nonce, callback, verifier, params);
     format!("OAuth {}", p.iter()
         .map(|(key, val)| format!("{}=\"{}\"",
-            percent_encode(*key), percent_encode(val.as_slice())))
+            percent_encode(*key), percent_encode(&val[])))
         .collect::<Vec<String>>()
         .connect(",")
     )
