@@ -6,11 +6,11 @@ use super::{SignatureMethod, percent_encode, base_string_url, normalize_paramete
 #[test]
 fn signature_method_test() {
     assert_eq!(
-        SignatureMethod::HmacSha1.to_string().as_slice(),
+        &SignatureMethod::HmacSha1.to_string()[],
         "HMAC-SHA1"
     );
     assert_eq!(
-        SignatureMethod::Plaintext.to_string().as_slice(),
+        &SignatureMethod::Plaintext.to_string()[],
         "PLAINTEXT"
     );
 }
@@ -18,19 +18,19 @@ fn signature_method_test() {
 #[test]
 fn percent_encode_test() {
     assert_eq!(
-        percent_encode("Ladies + Gentlemen").as_slice(),
+        &percent_encode("Ladies + Gentlemen")[],
         "Ladies%20%2B%20Gentlemen"
     );
     assert_eq!(
-        percent_encode("An encoded string!").as_slice(),
+        &percent_encode("An encoded string!")[],
         "An%20encoded%20string%21"
     );
     assert_eq!(
-        percent_encode("Dogs, Cats & Mice").as_slice(),
+        &percent_encode("Dogs, Cats & Mice")[],
         "Dogs%2C%20Cats%20%26%20Mice"
     );
     assert_eq!(
-        percent_encode("☃").as_slice(),
+        &percent_encode("☃")[],
         "%E2%98%83"
     );
 }
@@ -38,15 +38,15 @@ fn percent_encode_test() {
 #[test]
 fn base_string_url_test() {
     assert_eq!(
-        base_string_url(
+        &base_string_url(
             Url::parse("HTTP://EXAMPLE.COM:80/r%20v/X?id=123").unwrap()
-        ).as_slice(),
+        )[],
         "http://example.com/r%20v/X"
     );
     assert_eq!(
-        base_string_url(
+        &base_string_url(
             Url::parse("https://www.example.net:8080/?q=1").unwrap()
-        ).as_slice(),
+        )[],
         "https://www.example.net:8080/"
     );
 }
@@ -79,7 +79,7 @@ fn params() -> IntoIter<(String, String)> {
 #[test]
 fn normalize_parameters_test() {
     assert_eq!(
-        normalize_parameters(params()).as_slice(),
+        &normalize_parameters(params())[],
         concat!(
             "a2=r%20b&a3=2%20q&a3=a&b5=%3D%253D&c%40=&c2=&oauth_consumer_key=9dj",
             "dj82h48djs9d2&oauth_nonce=7d8f3e4a&oauth_signature_method=HMAC-SHA1",
@@ -102,7 +102,7 @@ fn get_signature_base_string() -> String {
 #[test]
 fn signature_base_string_test() {
     assert_eq!(
-        get_signature_base_string().as_slice(),
+        &get_signature_base_string()[],
         concat!(
             "POST&http%3A%2F%2Fexample.com%2Frequest&a2%3Dr%2520b%26a3%3D2%2520q",
             "%26a3%3Da%26b5%3D%253D%25253D%26c%2540%3D%26c2%3D%26oauth_consumer_",

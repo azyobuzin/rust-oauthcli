@@ -1,10 +1,11 @@
 //! Yet Another OAuth 1.0 Client Library for Rust
 
 #![allow(unused_must_use)]
-#![feature(collections, core, rand, std_misc)]
+#![feature(std_misc)]
 #![unstable]
 
 extern crate crypto;
+extern crate rand;
 extern crate "rustc-serialize" as serialize;
 extern crate time;
 extern crate url;
@@ -14,9 +15,9 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{self, Writer};
 use std::mem;
-use std::rand::{self, Rng};
 use crypto::{hmac, sha1};
 use crypto::mac::Mac;
+use rand::Rng;
 use serialize::base64::{self, ToBase64};
 use url::{percent_encoding, Url};
 
