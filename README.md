@@ -24,7 +24,7 @@ let header =
     oauthcli::nonce(),
     None, // oauth_callback
     None, // oauth_verifier
-    vec![("status".to_string(), "hello".to_string())].iter()
+    vec![("status".to_string(), "hello".to_string())].into_iter()
   );
 
 // header = "OAuth ......"
