@@ -1,6 +1,5 @@
 //! Yet Another OAuth 1.0 Client Library for Rust
 
-#![allow(unused_must_use)]
 #![feature(std_misc)]
 #![unstable]
 
@@ -13,7 +12,7 @@ extern crate url;
 use std::ascii::{AsciiExt, OwnedAsciiExt};
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::fmt::{self, Writer};
+use std::fmt::{self, Write};
 use std::mem;
 use crypto::{hmac, sha1};
 use crypto::mac::Mac;
@@ -97,7 +96,7 @@ fn base_string_url(url: Url) -> String {
             result.push_str(&data.host.to_string().into_ascii_lowercase()[]);
             match data.port {
                 Some(p) => if p != data.default_port.unwrap() {
-                    write!(&mut result, ":{}", p);
+                    write!(&mut result, ":{}", p).ok();
                  },
                  None => ()
             }
