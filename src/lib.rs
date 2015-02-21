@@ -88,19 +88,19 @@ fn percent_encode(input: &str) -> String {
 
 fn base_string_url(url: Url) -> String {
     let scheme = url.scheme.into_ascii_lowercase();
-    assert!(match &scheme[]
+    assert!(match &scheme[..]
         { "http" => true, "https" => true, _ => false });
     let mut result = format!("{}://", scheme);
     match url.scheme_data {
         url::SchemeData::Relative(data) => {
-            result.push_str(&data.host.to_string().into_ascii_lowercase()[]);
+            result.push_str(&data.host.to_string().into_ascii_lowercase()[..]);
             match data.port {
                 Some(p) => if p != data.default_port.unwrap() {
                     write!(&mut result, ":{}", p).ok();
                  },
                  None => ()
             }
-            result.push_str(&data.serialize_path()[]);
+            result.push_str(&data.serialize_path()[..]);
         },
         url::SchemeData::NonRelative(_) => panic!("scheme_data is NonRelative")
     }
@@ -108,9 +108,10 @@ fn base_string_url(url: Url) -> String {
 }
 
 fn normalize_parameters<P>(params: P) -> String
-        where P: Iterator<Item = (String, String)> {
+    where P: Iterator<Item = (String, String)>
+{
     let mut mutparams: Vec<_> = params
-        .map(|x| (percent_encode(&x.0[]), percent_encode(&x.1[])))
+        .map(|x| (percent_encode(&x.0[..]), percent_encode(&x.1[..])))
         .collect();
     mutparams.sort_by(|a, b| {
         match a.0.cmp(&b.0) {
@@ -137,25 +138,24 @@ pub fn timestamp() -> String {
 #[stable]
 #[inline]
 pub fn nonce() -> String {
-    rand::thread_rng()
-        .gen_ascii_chars()
-        .take(42)
-        .collect()
+    rand::thread_rng().gen_ascii_chars()
+        .take(42).collect()
 }
 
 #[inline]
 fn oauth_parameters(realm: Option<&str>, consumer_key: &str,
-        token: Option<&str>, signature_method: SignatureMethod,
-        timestamp: String, nonce: String, callback: Option<&str>,
-        verifier: Option<&str>)
-        -> HashMap<&'static str, String> {
+    token: Option<&str>, signature_method: SignatureMethod,
+    timestamp: &str, nonce: &str, callback: Option<&str>,
+    verifier: Option<&str>)
+    -> HashMap<&'static str, String>
+{
     let mut h = HashMap::new();
     match realm { Some(x) => { h.insert("realm", x.to_string()); }, None => () }
     h.insert("oauth_consumer_key", consumer_key.to_string());
     match token { Some(x) => { h.insert("oauth_token", x.to_string()); }, None => () }
     h.insert("oauth_signature_method", signature_method.to_string());
-    h.insert("oauth_timestamp", timestamp);
-    h.insert("oauth_nonce", nonce);
+    h.insert("oauth_timestamp", timestamp.to_string());
+    h.insert("oauth_nonce", nonce.to_string());
     match callback { Some(x) => { h.insert("oauth_callback", x.to_string()); }, None => () }
     match verifier { Some(x) => { h.insert("oauth_verifier", x.to_string()); }, None => () }
     // oauth_version is optional
@@ -163,8 +163,9 @@ fn oauth_parameters(realm: Option<&str>, consumer_key: &str,
 }
 
 fn signature_base_string<P>(method: &str, url: Url,
-        params: P, mut oauth_params: HashMap<&'static str, String>)
-        -> String where P: Iterator<Item = (String, String)> {
+    params: P, mut oauth_params: HashMap<&'static str, String>)
+    -> String where P: Iterator<Item = (String, String)>
+{
     let mut mutparams: Vec<(String, String)> = params
         .map(|x| (x.0.clone(), x.1.clone())).collect();
     oauth_params.remove("realm");
@@ -178,16 +179,17 @@ fn signature_base_string<P>(method: &str, url: Url,
     format!(
         "{}&{}&{}",
         method.to_ascii_uppercase(),
-        percent_encode(&base_string_url(url)[]),
-        percent_encode(&normalize_parameters(mutparams.into_iter())[])
+        percent_encode(&base_string_url(url)[..]),
+        percent_encode(&normalize_parameters(mutparams.into_iter())[..])
     )
 }
 
 fn signature(base_string: String, signature_method: SignatureMethod,
-        consumer_secret: &str, token_secret: Option<&str>) -> String {
+    consumer_secret: &str, token_secret: Option<&str>) -> String
+{
     let ts = match token_secret {
         Some(x) => percent_encode(x),
-        None => "".to_string()
+        None => String::new()
     };
     let key = format!("{}&{}", percent_encode(consumer_secret), ts);
     match signature_method {
@@ -209,12 +211,13 @@ fn signature(base_string: String, signature_method: SignatureMethod,
 /// The return value contains elements whose key is `"oauth_foo"`.
 #[unstable]
 pub fn protocol_parameters<P>(method: &str, url: Url, realm: Option<&str>,
-        consumer_key: &str, consumer_secret: &str, token: Option<&str>,
-        token_secret: Option<&str>, signature_method: SignatureMethod,
-        timestamp: String, nonce: String, callback: Option<&str>,
-        verifier: Option<&str>, params: P)
-        -> HashMap<&'static str, String>
-        where P: Iterator<Item = (String, String)> {
+    consumer_key: &str, consumer_secret: &str, token: Option<&str>,
+    token_secret: Option<&str>, signature_method: SignatureMethod,
+    timestamp: &str, nonce: &str, callback: Option<&str>,
+    verifier: Option<&str>, params: P)
+    -> HashMap<&'static str, String>
+    where P: Iterator<Item = (String, String)>
+{
     let mut oauth_params = oauth_parameters(
         realm, consumer_key, token, signature_method, timestamp, nonce,
         callback, verifier);
@@ -231,17 +234,17 @@ pub fn protocol_parameters<P>(method: &str, url: Url, realm: Option<&str>,
 /// The return value starts with `"OAuth "`.
 #[unstable]
 pub fn authorization_header<P>(method: &str, url: Url, realm: Option<&str>,
-        consumer_key: &str, consumer_secret: &str, token: Option<&str>,
-        token_secret: Option<&str>, signature_method: SignatureMethod,
-        timestamp: String, nonce: String, callback: Option<&str>,
-        verifier: Option<&str>, params: P)
-        -> String
-        where P: Iterator<Item = (String, String)> {
+    consumer_key: &str, consumer_secret: &str, token: Option<&str>,
+    token_secret: Option<&str>, signature_method: SignatureMethod,
+    timestamp: &str, nonce: &str, callback: Option<&str>,
+    verifier: Option<&str>, params: P)
+    -> String where P: Iterator<Item = (String, String)>
+{
     let p = protocol_parameters(method, url, realm, consumer_key, consumer_secret,
         token, token_secret, signature_method, timestamp, nonce, callback, verifier, params);
     format!("OAuth {}", p.iter()
         .map(|(key, val)| format!("{}=\"{}\"",
-            percent_encode(*key), percent_encode(&val[])))
+            percent_encode(*key), percent_encode(&val[..])))
         .collect::<Vec<String>>()
         .connect(",")
     )
