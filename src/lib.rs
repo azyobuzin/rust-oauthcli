@@ -115,16 +115,20 @@ fn normalize_parameters<P>(params: P) -> String
         .collect();
     mutparams.sort_by(|a, b| {
         match a.0.cmp(&b.0) {
-            Ordering::Less => Ordering::Less,
             Ordering::Equal => a.1.cmp(&b.1),
-            Ordering::Greater => Ordering::Greater
+            x => x
         }
     });
-    mutparams.sort();
-    mutparams.iter()
-        .map(|x| format!("{}={}", x.0, x.1))
-        .collect::<Vec<String>>()
-        .connect("&")
+    let mut result = String::new();
+    if mutparams.len() > 0 {
+        let mut first = true;
+        for (key, val) in mutparams.into_iter() {
+            if first { first = false; }
+            else { result.push('&'); }
+            write!(&mut result, "{}={}", key, val).ok();
+        }
+    }
+    result
 }
 
 /// Generate a string for `oauth_timestamp`.
@@ -242,12 +246,17 @@ pub fn authorization_header<P>(method: &str, url: Url, realm: Option<&str>,
 {
     let p = protocol_parameters(method, url, realm, consumer_key, consumer_secret,
         token, token_secret, signature_method, timestamp, nonce, callback, verifier, params);
-    format!("OAuth {}", p.iter()
-        .map(|(key, val)| format!("{}=\"{}\"",
-            percent_encode(*key), percent_encode(&val[..])))
-        .collect::<Vec<String>>()
-        .connect(",")
-    )
+    let mut result = "OAuth ".to_string();
+    if p.len() > 0 {
+        let mut first = true;
+        for (&key, val) in p.iter() {
+            if first { first = false; }
+            else { result.push(','); }
+            write!(&mut result, "{}=\"{}\"",
+                percent_encode(key), percent_encode(&val[..])).ok();
+        }
+    }
+    result
 }
 
 #[cfg(test)]
