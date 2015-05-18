@@ -1,15 +1,12 @@
 //! Yet Another OAuth 1.0 Client Library for Rust
 
-#![feature(std_misc)]
-#![unstable]
-
 extern crate crypto;
 extern crate rand;
-extern crate "rustc-serialize" as serialize;
+extern crate rustc_serialize as serialize;
 extern crate time;
 extern crate url;
 
-use std::ascii::{AsciiExt, OwnedAsciiExt};
+use std::ascii::AsciiExt;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{self, Write};
@@ -21,14 +18,11 @@ use serialize::base64::{self, ToBase64};
 use url::{percent_encoding, Url};
 
 /// Available `oauth_signature_method` types.
-#[derive(Copy, Debug, PartialEq, Eq)]
-#[stable]
+#[derive(Copy, Debug, PartialEq, Eq, Clone)]
 pub enum SignatureMethod {
     /// HMAC-SHA1
-    #[stable]
     HmacSha1,
     /// PLAINTEXT
-    #[stable]
     Plaintext
 }
 
@@ -87,13 +81,13 @@ fn percent_encode(input: &str) -> String {
 }
 
 fn base_string_url(url: Url) -> String {
-    let scheme = url.scheme.into_ascii_lowercase();
+    let scheme = url.scheme.to_ascii_lowercase();
     assert!(match &scheme[..]
         { "http" => true, "https" => true, _ => false });
     let mut result = format!("{}://", scheme);
     match url.scheme_data {
         url::SchemeData::Relative(data) => {
-            result.push_str(&data.host.to_string().into_ascii_lowercase()[..]);
+            result.push_str(&data.host.to_string().to_ascii_lowercase()[..]);
             match data.port {
                 Some(p) => if p != data.default_port.unwrap() {
                     write!(&mut result, ":{}", p).ok();
@@ -132,14 +126,12 @@ fn normalize_parameters<P>(params: P) -> String
 }
 
 /// Generate a string for `oauth_timestamp`.
-#[stable]
 #[inline]
 pub fn timestamp() -> String {
     time::now_utc().to_timespec().sec.to_string()
 }
 
 /// Generate a string for `oauth_nonce`.
-#[stable]
 #[inline]
 pub fn nonce() -> String {
     rand::thread_rng().gen_ascii_chars()
@@ -213,7 +205,6 @@ fn signature(base_string: String, signature_method: SignatureMethod,
 
 /// Generate OAuth parameters set.
 /// The return value contains elements whose key is `"oauth_foo"`.
-#[unstable]
 pub fn protocol_parameters<P>(method: &str, url: Url, realm: Option<&str>,
     consumer_key: &str, consumer_secret: &str, token: Option<&str>,
     token_secret: Option<&str>, signature_method: SignatureMethod,
@@ -236,7 +227,6 @@ pub fn protocol_parameters<P>(method: &str, url: Url, realm: Option<&str>,
 
 /// Generate `Authorization` header for OAuth.
 /// The return value starts with `"OAuth "`.
-#[unstable]
 pub fn authorization_header<P>(method: &str, url: Url, realm: Option<&str>,
     consumer_key: &str, consumer_secret: &str, token: Option<&str>,
     token_secret: Option<&str>, signature_method: SignatureMethod,
