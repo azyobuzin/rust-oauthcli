@@ -107,7 +107,7 @@ fn signature_base_string_test() {
             "%26a3%3Da%26b5%3D%253D%25253D%26c%2540%3D%26c2%3D%26oauth_consumer_",
             "key%3D9djdj82h48djs9d2%26oauth_nonce%3D7d8f3e4a%26oauth_signature_m",
             "ethod%3DHMAC-SHA1%26oauth_timestamp%3D137131201%26oauth_token%3Dkkk",
-            "9d7dh3k39sjv7"
+            "9d7dh3k39sjv7%26oauth_version%3D1.0"
         )
     );
 }
