@@ -154,7 +154,7 @@ fn oauth_parameters(realm: Option<&str>, consumer_key: &str,
     h.insert("oauth_nonce", nonce.to_string());
     match callback { Some(x) => { h.insert("oauth_callback", x.to_string()); }, None => () }
     match verifier { Some(x) => { h.insert("oauth_verifier", x.to_string()); }, None => () }
-    // oauth_version is optional
+    h.insert("oauth_version", "1.0".to_string());
     h
 }
 
