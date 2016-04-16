@@ -1,6 +1,6 @@
 [package]
 name = "oauthcli"
-version = "0.0.7"
+version = "0.1.0"
 authors = ["azyobuzin <azyobuzin@users.sourceforge.jp>"]
 description = "Implementation of OAuth 1.0 Client without curl dependency"
 documentation = "http://www.rust-ci.org/azyobuzin/rust-oauthcli/doc/oauthcli/"
@@ -9,8 +9,8 @@ keywords = ["oauth"]
 license = "WTFPL"
 
 [dependencies]
-rand = "*"
-rust-crypto = "*"
-rustc-serialize = "*"
-time = "*"
-url = "*"
+rand = "0.3"
+rust-crypto = "0.2"
+rustc-serialize = "0.3"
+time = "0.1"
+url = "0.5"
