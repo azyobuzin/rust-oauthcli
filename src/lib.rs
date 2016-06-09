@@ -4,7 +4,7 @@ extern crate crypto;
 extern crate rand;
 extern crate rustc_serialize as serialize;
 extern crate time;
-extern crate url;
+pub extern crate url;
 
 use std::ascii::AsciiExt;
 use std::cmp::Ordering;

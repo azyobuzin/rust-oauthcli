@@ -8,12 +8,11 @@ Yet Another OAuth 1.0 Client Library for Rust
 # How to Use
 ```rust
 extern crate oauthcli;
-extern crate url;
 
 let header =
   oauthcli::authorization_header(
     "POST",
-    url::Url::parse("https://example").unwrap(),
+    oauthcli::url::Url::parse("https://example").unwrap(),
     None, // Realm
     "Consumer Key",
     "Consumer Secret",
