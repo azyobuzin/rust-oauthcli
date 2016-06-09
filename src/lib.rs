@@ -10,12 +10,11 @@ use std::ascii::AsciiExt;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{self, Write};
-use std::mem;
 use crypto::{hmac, sha1};
 use crypto::mac::Mac;
 use rand::Rng;
 use serialize::base64::{self, ToBase64};
-use url::{percent_encoding, Url};
+use url::{percent_encoding, Host, Url};
 
 /// Available `oauth_signature_method` types.
 #[derive(Copy, Debug, PartialEq, Eq, Clone)]
@@ -35,69 +34,46 @@ impl fmt::Display for SignatureMethod {
     }
 }
 
-static ENCODE_SET_MAP: &'static [&'static str; 256] = &[
-    "%00", "%01", "%02", "%03", "%04", "%05", "%06", "%07",
-    "%08", "%09", "%0A", "%0B", "%0C", "%0D", "%0E", "%0F",
-    "%10", "%11", "%12", "%13", "%14", "%15", "%16", "%17",
-    "%18", "%19", "%1A", "%1B", "%1C", "%1D", "%1E", "%1F",
-    "%20", "%21", "%22", "%23", "%24", "%25", "%26", "%27",
-    "%28", "%29", "%2A", "%2B", "%2C", "-", ".", "%2F",
-    "0", "1", "2", "3", "4", "5", "6", "7",
-    "8", "9", "%3A", "%3B", "%3C", "%3D", "%3E", "%3F",
-    "%40", "A", "B", "C", "D", "E", "F", "G",
-    "H", "I", "J", "K", "L", "M", "N", "O",
-    "P", "Q", "R", "S", "T", "U", "V", "W",
-    "X", "Y", "Z", "%5B", "%5C", "%5D", "%5E", "_",
-    "%60", "a", "b", "c", "d", "e", "f", "g",
-    "h", "i", "j", "k", "l", "m", "n", "o",
-    "p", "q", "r", "s", "t", "u", "v", "w",
-    "x", "y", "z", "%7B", "%7C", "%7D", "~", "%7F",
-    "%80", "%81", "%82", "%83", "%84", "%85", "%86", "%87",
-    "%88", "%89", "%8A", "%8B", "%8C", "%8D", "%8E", "%8F",
-    "%90", "%91", "%92", "%93", "%94", "%95", "%96", "%97",
-    "%98", "%99", "%9A", "%9B", "%9C", "%9D", "%9E", "%9F",
-    "%A0", "%A1", "%A2", "%A3", "%A4", "%A5", "%A6", "%A7",
-    "%A8", "%A9", "%AA", "%AB", "%AC", "%AD", "%AE", "%AF",
-    "%B0", "%B1", "%B2", "%B3", "%B4", "%B5", "%B6", "%B7",
-    "%B8", "%B9", "%BA", "%BB", "%BC", "%BD", "%BE", "%BF",
-    "%C0", "%C1", "%C2", "%C3", "%C4", "%C5", "%C6", "%C7",
-    "%C8", "%C9", "%CA", "%CB", "%CC", "%CD", "%CE", "%CF",
-    "%D0", "%D1", "%D2", "%D3", "%D4", "%D5", "%D6", "%D7",
-    "%D8", "%D9", "%DA", "%DB", "%DC", "%DD", "%DE", "%DF",
-    "%E0", "%E1", "%E2", "%E3", "%E4", "%E5", "%E6", "%E7",
-    "%E8", "%E9", "%EA", "%EB", "%EC", "%ED", "%EE", "%EF",
-    "%F0", "%F1", "%F2", "%F3", "%F4", "%F5", "%F6", "%F7",
-    "%F8", "%F9", "%FA", "%FB", "%FC", "%FD", "%FE", "%FF",
-];
+/// [RFC 5849 section 3.6](http://tools.ietf.org/html/rfc5849#section-3.6).
+#[derive(Copy, Clone)]
+#[allow(non_camel_case_types)]
+pub struct OAUTH_ENCODE_SET;
 
-/// Return the EncodeSet of [RFC 5849 section 3.6](http://tools.ietf.org/html/rfc5849#section-3.6).
-pub fn encode_set() -> percent_encoding::EncodeSet {
-    unsafe { mem::transmute(ENCODE_SET_MAP) }
+impl percent_encoding::EncodeSet for OAUTH_ENCODE_SET {
+    fn contains(&self, byte: u8) -> bool {
+        !((byte >= 0x30 && byte <= 0x39)
+        || (byte >= 0x41 && byte <= 0x5A)
+        || (byte >= 0x61 && byte <= 0x7A)
+        || byte == 0x2D || byte == 0x2E
+        || byte == 0x5F || byte == 0x7E)
+    }
 }
 
 #[inline]
 fn percent_encode(input: &str) -> String {
-    percent_encoding::utf8_percent_encode(input, encode_set())
+    percent_encoding::utf8_percent_encode(input, OAUTH_ENCODE_SET)
+        .collect::<String>()
 }
 
 fn base_string_url(url: Url) -> String {
-    let scheme = url.scheme.to_ascii_lowercase();
+    let scheme = url.scheme().to_ascii_lowercase();
     assert!(match &scheme[..]
-        { "http" => true, "https" => true, _ => false });
+        { "http" | "https" => true, _ => false });
     let mut result = format!("{}://", scheme);
-    match url.scheme_data {
-        url::SchemeData::Relative(data) => {
-            result.push_str(&data.host.to_string().to_ascii_lowercase()[..]);
-            match data.port {
-                Some(p) => if p != data.default_port.unwrap() {
-                    write!(&mut result, ":{}", p).ok();
-                 },
-                 None => ()
-            }
-            result.push_str(&data.serialize_path()[..]);
+    match url.host() {
+        Some(Host::Domain(host)) => {
+            result.push_str(&host.to_ascii_lowercase()[..]);
         },
-        url::SchemeData::NonRelative(_) => panic!("scheme_data is NonRelative")
+        _ => panic!("Invalid host")
     }
+    match url.port() {
+        Some(p) => match (&scheme[..], p) {
+            ("http", 80) | ("https", 443) => (),
+            _ => { write!(&mut result, ":{}", p).ok(); }
+        },
+        None => ()
+    }
+    result.push_str(&url.path()[..]);
     result
 }
 
@@ -167,11 +143,7 @@ fn signature_base_string<P>(method: &str, url: Url,
     oauth_params.remove("realm");
     mutparams.extend(oauth_params.iter()
         .map(|(key, val)| (key.to_string(), val.clone())));
-    let query = match url.query_pairs() {
-        Some(pairs) => pairs,
-        None => Vec::new()
-    };
-    mutparams.extend(query.iter().map(|x| (x.0.clone(), x.1.clone())));
+    mutparams.extend(url.query_pairs().map(|x| (x.0.to_string(), x.1.to_string())));
     format!(
         "{}&{}&{}",
         method.to_ascii_uppercase(),
