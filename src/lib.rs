@@ -49,7 +49,6 @@ impl percent_encoding::EncodeSet for OAUTH_ENCODE_SET {
     }
 }
 
-#[inline]
 fn percent_encode(input: &str) -> String {
     percent_encoding::utf8_percent_encode(input, OAUTH_ENCODE_SET)
         .collect::<String>()
@@ -102,19 +101,16 @@ fn normalize_parameters<P>(params: P) -> String
 }
 
 /// Generate a string for `oauth_timestamp`.
-#[inline]
 pub fn timestamp() -> String {
     time::now_utc().to_timespec().sec.to_string()
 }
 
 /// Generate a string for `oauth_nonce`.
-#[inline]
 pub fn nonce() -> String {
     rand::thread_rng().gen_ascii_chars()
         .take(42).collect()
 }
 
-#[inline]
 fn oauth_parameters(realm: Option<&str>, consumer_key: &str,
     token: Option<&str>, signature_method: SignatureMethod,
     timestamp: &str, nonce: &str, callback: Option<&str>,
