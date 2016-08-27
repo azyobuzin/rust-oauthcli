@@ -4,13 +4,23 @@ notifications:
   email: false
 env:
   global:
-    - secure: p2poIJ4MwHBQbGHUEAlv5dQsZ/VrkOCz+jwlXyf0KIx9rfLf7ZHwexM9z6i8UtKOdUsvoPgD84p0xZIqByfOgkST5mi38FyzVt9Ns9aEoy+Rbr1vNnn2eHEZaeKyQ+qEr9+Edn1G+NgpC5vQ2ZojFbuJm/KYlsYALtCP6CZbtRw=
+    - secure: GoKS4H/zTQglKE+g/iicO5O1BehzuR9/Xgy0zrejjse89EdY2+qjGvVAuIV9Ye+RELVGhHQeYlA6sYH3eikyJm2u8z4ne+ajJjShd9dBJ2BRisuQygd3GyhveHVBM931Y/H3q8QLlRZwwXqkQReZkk857UAzMn0xV6UWdM/Lr9o=
+
+before_script:
+  - git clone -b gh-pages "https://$GH_TOKEN@github.com/azyobuzin/rust-oauthcli.git" target/doc
+  - pushd target/doc
+  - rm -rf !(.git)
+  - popd
 
 script:
   - cargo build
   - cargo test
   - cargo doc
 
-after_script:
-  - cd target
-  - curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh
+after_success:
+  - cd target/doc
+  - git add --all
+  - git config user.email gh-bot@azyobuzi.net
+  - git config user.name azyobuzin_bot
+  - git commit -qm "$TRAVIS_COMMIT"
+  - '[ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ] && git push origin gh-pages'
