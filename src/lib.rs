@@ -1,6 +1,5 @@
 //! Yet Another OAuth 1.0 Client Library for Rust
 
-extern crate crypto;
 extern crate rand;
 extern crate rustc_serialize as serialize;
 extern crate time;
@@ -10,11 +9,12 @@ use std::ascii::AsciiExt;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{self, Write};
-use crypto::{hmac, sha1};
-use crypto::mac::Mac;
 use rand::Rng;
 use serialize::base64::{self, ToBase64};
 use url::{percent_encoding, Host, Url};
+use security::*;
+
+mod security;
 
 /// Available `oauth_signature_method` types.
 #[derive(Copy, Debug, PartialEq, Eq, Clone)]
@@ -157,16 +157,14 @@ fn signature(base_string: String, signature_method: SignatureMethod,
     };
     let key = format!("{}&{}", percent_encode(consumer_secret), ts);
     match signature_method {
-        SignatureMethod::HmacSha1 => {
-            let mut h = hmac::Hmac::new(sha1::Sha1::new(), key.as_bytes());
-            h.input(base_string.as_bytes());
-            h.result().code().to_base64(base64::Config {
-                char_set: serialize::base64::CharacterSet::Standard,
-                newline: serialize::base64::Newline::LF,
-                pad: true,
-                line_length: None
-            })
-        },
+        SignatureMethod::HmacSha1 =>
+            hmac(key.as_bytes(), base_string.as_bytes(), Sha1)
+                .to_base64(base64::Config {
+                    char_set: serialize::base64::CharacterSet::Standard,
+                    newline: serialize::base64::Newline::LF,
+                    pad: true,
+                    line_length: None
+                }),
         SignatureMethod::Plaintext => key
     }
 }
