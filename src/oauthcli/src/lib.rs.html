@@ -261,12 +261,9 @@
 <span id="217">217</span>
 <span id="218">218</span>
 <span id="219">219</span>
-<span id="220">220</span>
-<span id="221">221</span>
 </pre><pre class='rust '>
 <span class='doccomment'>//! Yet Another OAuth 1.0 Client Library for Rust</span>
 
-<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>crypto</span>;
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>rand</span>;
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>rustc_serialize</span> <span class='kw'>as</span> <span class='ident'>serialize</span>;
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>time</span>;
@@ -276,11 +273,12 @@
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>cmp</span>::<span class='ident'>Ordering</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>collections</span>::<span class='ident'>HashMap</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fmt</span>::{<span class='self'>self</span>, <span class='ident'>Write</span>};
-<span class='kw'>use</span> <span class='ident'>crypto</span>::{<span class='ident'>hmac</span>, <span class='ident'>sha1</span>};
-<span class='kw'>use</span> <span class='ident'>crypto</span>::<span class='ident'>mac</span>::<span class='ident'>Mac</span>;
 <span class='kw'>use</span> <span class='ident'>rand</span>::<span class='ident'>Rng</span>;
 <span class='kw'>use</span> <span class='ident'>serialize</span>::<span class='ident'>base64</span>::{<span class='self'>self</span>, <span class='ident'>ToBase64</span>};
 <span class='kw'>use</span> <span class='ident'>url</span>::{<span class='ident'>percent_encoding</span>, <span class='ident'>Host</span>, <span class='ident'>Url</span>};
+<span class='kw'>use</span> <span class='ident'>security</span>::<span class='op'>*</span>;
+
+<span class='kw'>mod</span> <span class='ident'>security</span>;
 
 <span class='doccomment'>/// Available `oauth_signature_method` types.</span>
 <span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Copy</span>, <span class='ident'>Debug</span>, <span class='ident'>PartialEq</span>, <span class='ident'>Eq</span>, <span class='ident'>Clone</span>)]</span>
@@ -423,16 +421,14 @@
     };
     <span class='kw'>let</span> <span class='ident'>key</span> <span class='op'>=</span> <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;{}&amp;{}&quot;</span>, <span class='ident'>percent_encode</span>(<span class='ident'>consumer_secret</span>), <span class='ident'>ts</span>);
     <span class='kw'>match</span> <span class='ident'>signature_method</span> {
-        <span class='ident'>SignatureMethod</span>::<span class='ident'>HmacSha1</span> <span class='op'>=&gt;</span> {
-            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>h</span> <span class='op'>=</span> <span class='ident'>hmac</span>::<span class='ident'>Hmac</span>::<span class='ident'>new</span>(<span class='ident'>sha1</span>::<span class='ident'>Sha1</span>::<span class='ident'>new</span>(), <span class='ident'>key</span>.<span class='ident'>as_bytes</span>());
-            <span class='ident'>h</span>.<span class='ident'>input</span>(<span class='ident'>base_string</span>.<span class='ident'>as_bytes</span>());
-            <span class='ident'>h</span>.<span class='ident'>result</span>().<span class='ident'>code</span>().<span class='ident'>to_base64</span>(<span class='ident'>base64</span>::<span class='ident'>Config</span> {
-                <span class='ident'>char_set</span>: <span class='ident'>serialize</span>::<span class='ident'>base64</span>::<span class='ident'>CharacterSet</span>::<span class='ident'>Standard</span>,
-                <span class='ident'>newline</span>: <span class='ident'>serialize</span>::<span class='ident'>base64</span>::<span class='ident'>Newline</span>::<span class='ident'>LF</span>,
-                <span class='ident'>pad</span>: <span class='bool-val'>true</span>,
-                <span class='ident'>line_length</span>: <span class='prelude-val'>None</span>
-            })
-        },
+        <span class='ident'>SignatureMethod</span>::<span class='ident'>HmacSha1</span> <span class='op'>=&gt;</span>
+            <span class='ident'>hmac</span>(<span class='ident'>base_string</span>.<span class='ident'>as_bytes</span>(), <span class='ident'>key</span>.<span class='ident'>as_bytes</span>(), <span class='ident'>Sha1</span>)
+                .<span class='ident'>to_base64</span>(<span class='ident'>base64</span>::<span class='ident'>Config</span> {
+                    <span class='ident'>char_set</span>: <span class='ident'>serialize</span>::<span class='ident'>base64</span>::<span class='ident'>CharacterSet</span>::<span class='ident'>Standard</span>,
+                    <span class='ident'>newline</span>: <span class='ident'>serialize</span>::<span class='ident'>base64</span>::<span class='ident'>Newline</span>::<span class='ident'>LF</span>,
+                    <span class='ident'>pad</span>: <span class='bool-val'>true</span>,
+                    <span class='ident'>line_length</span>: <span class='prelude-val'>None</span>
+                }),
         <span class='ident'>SignatureMethod</span>::<span class='ident'>Plaintext</span> <span class='op'>=&gt;</span> <span class='ident'>key</span>
     }
 }
