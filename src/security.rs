@@ -39,45 +39,42 @@ impl HashAlgorithm for Sha1 {
             .chain(iter::repeat(0u8).take(padding))
             .chain(ml_bytes.into_iter().map(|x| *x));
 
-        let (mut h0, mut h1, mut h2, mut h3, mut h4) =
-            (Wrapping(0x67452301u32), Wrapping(0xEFCDAB89u32), Wrapping(0x98BADCFEu32), Wrapping(0x10325476u32), Wrapping(0xC3D2E1F0u32));
-
-        let mut w = [Wrapping(0u32); 80];
+        let mut w = [Default::default(); 80];
 
         // (The length of msg + 63) / 64
-        for _ in 0..((input.len() + padding + 64) / 64) {
-            for t in 0..16 {
-                w[t] = Wrapping(
-                    ((msg.next().unwrap() as u32) << 24) |
-                    ((msg.next().unwrap() as u32) << 16) |
-                    ((msg.next().unwrap() as u32) << 8) |
-                    (msg.next().unwrap() as u32)
-                );
-            }
-
-            for t in 16..80 {
-                w[t] = Wrapping((w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16]).0.rotate_left(1));
-            }
-
-            let (a, b, c, d, e) = (0..80).fold(
-                (h0, h1, h2, h3, h4),
-                |(a, b, c, d, e), t| {
-                    let f =
-                        if t < 20 { ((b & c) | (!b & d)) + Wrapping(0x5A827999) }
-                        else if t < 40 { (b ^ c ^ d) + Wrapping(0x6ED9EBA1) }
-                        else if t < 60 { ((b & c) | (b & d) | (c & d)) + Wrapping(0x8F1BBCDC) }
-                        else { (b ^ c ^ d) + Wrapping(0xCA62C1D6) };
-
-                    (Wrapping(a.0.rotate_left(5)) + f + e + w[t], a, Wrapping(b.0.rotate_left(30)), c, d)
+        let (h0, h1, h2, h3, h4) = (0..((input.len() + padding + 64) / 64)).fold(
+            (Wrapping(0x67452301u32), Wrapping(0xEFCDAB89u32), Wrapping(0x98BADCFEu32), Wrapping(0x10325476u32), Wrapping(0xC3D2E1F0u32)),
+            move |(h0, h1, h2, h3, h4), _|
+            {
+                for t in 0..16 {
+                    w[t] = Wrapping(
+                        ((msg.next().unwrap() as u32) << 24) |
+                        ((msg.next().unwrap() as u32) << 16) |
+                        ((msg.next().unwrap() as u32) << 8) |
+                        (msg.next().unwrap() as u32)
+                    );
                 }
-            );
 
-            h0 += a;
-            h1 += b;
-            h2 += c;
-            h3 += d;
-            h4 += e;
-        }
+                for t in 16..80 {
+                    w[t] = Wrapping((w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16]).0.rotate_left(1));
+                }
+
+                let (a, b, c, d, e) = (0..80).fold(
+                    (h0, h1, h2, h3, h4),
+                    |(a, b, c, d, e), t| {
+                        let f =
+                            if t < 20 { ((b & c) | (!b & d)) + Wrapping(0x5A827999) }
+                            else if t < 40 { (b ^ c ^ d) + Wrapping(0x6ED9EBA1) }
+                            else if t < 60 { ((b & c) | (b & d) | (c & d)) + Wrapping(0x8F1BBCDC) }
+                            else { (b ^ c ^ d) + Wrapping(0xCA62C1D6) };
+
+                        (Wrapping(a.0.rotate_left(5)) + f + e + w[t], a, Wrapping(b.0.rotate_left(30)), c, d)
+                    }
+                );
+
+                (h0 + a, h1 + b, h2 + c, h3 + d, h4 + e)
+            }
+        );
 
         [
             (h0.0 >> 24) as u8, (h0.0 >> 16) as u8, (h0.0 >> 8) as u8, h0.0 as u8,
@@ -89,8 +86,7 @@ impl HashAlgorithm for Sha1 {
     }
 }
 
-pub fn hmac<H: HashAlgorithm>(key: &[u8], msg: &[u8], hash: H) -> H::Output
-{
+pub fn hmac<H: HashAlgorithm>(key: &[u8], msg: &[u8], hash: H) -> H::Output {
     let block_size = hash.block_size();
     let tmp_key;
     let key =
@@ -103,18 +99,22 @@ pub fn hmac<H: HashAlgorithm>(key: &[u8], msg: &[u8], hash: H) -> H::Output
 
     let padding = block_size - key.len();
 
-    let mut inner: Vec<u8> = key.iter().map(|&x| x ^ 0x36).chain(iter::repeat(0x36).take(padding)).collect();
+    let mut inner = Vec::with_capacity(block_size + msg.len());
+    inner.extend(key.iter().map(|&x| x ^ 0x36).chain(iter::repeat(0x36).take(padding)));
     inner.extend_from_slice(msg);
-    let inner_hash = hash.compute_hash(&inner);
 
-    let mut outer: Vec<u8> = key.iter().map(|&x| x ^ 0x5C).chain(iter::repeat(0x5C).take(padding)).collect();
-    outer.extend_from_slice(inner_hash.as_ref());
+    let inner_hash = hash.compute_hash(&inner);
+    let inner_hash_ref = inner_hash.as_ref();
+
+    let mut outer = Vec::with_capacity(block_size + inner_hash_ref.len());
+    outer.extend(key.iter().map(|&x| x ^ 0x5C).chain(iter::repeat(0x5C).take(padding)));
+    outer.extend_from_slice(inner_hash_ref);
 
     hash.compute_hash(&outer)
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use security::*;
     use serialize::hex::{FromHex, ToHex};
     fn from_hex(x: &str) -> Vec<u8> { x.from_hex().unwrap() }
