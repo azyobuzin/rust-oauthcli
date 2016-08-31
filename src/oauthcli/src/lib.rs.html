@@ -422,7 +422,7 @@
     <span class='kw'>let</span> <span class='ident'>key</span> <span class='op'>=</span> <span class='macro'>format</span><span class='macro'>!</span>(<span class='string'>&quot;{}&amp;{}&quot;</span>, <span class='ident'>percent_encode</span>(<span class='ident'>consumer_secret</span>), <span class='ident'>ts</span>);
     <span class='kw'>match</span> <span class='ident'>signature_method</span> {
         <span class='ident'>SignatureMethod</span>::<span class='ident'>HmacSha1</span> <span class='op'>=&gt;</span>
-            <span class='ident'>hmac</span>(<span class='ident'>base_string</span>.<span class='ident'>as_bytes</span>(), <span class='ident'>key</span>.<span class='ident'>as_bytes</span>(), <span class='ident'>Sha1</span>)
+            <span class='ident'>hmac</span>(<span class='ident'>key</span>.<span class='ident'>as_bytes</span>(), <span class='ident'>base_string</span>.<span class='ident'>as_bytes</span>(), <span class='ident'>Sha1</span>)
                 .<span class='ident'>to_base64</span>(<span class='ident'>base64</span>::<span class='ident'>Config</span> {
                     <span class='ident'>char_set</span>: <span class='ident'>serialize</span>::<span class='ident'>base64</span>::<span class='ident'>CharacterSet</span>::<span class='ident'>Standard</span>,
                     <span class='ident'>newline</span>: <span class='ident'>serialize</span>::<span class='ident'>base64</span>::<span class='ident'>Newline</span>::<span class='ident'>LF</span>,
