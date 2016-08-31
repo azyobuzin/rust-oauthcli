@@ -12,32 +12,16 @@ pub struct Sha1;
 impl HashAlgorithm for Sha1 {
     type Output = [u8; 20];
 
-    fn block_size(&self) -> usize {
-        64
-    }
+    fn block_size(&self) -> usize { 64 }
 
     fn compute_hash(&self, input: &[u8]) -> Self::Output {
-        let ml_bytes = {
-            let ml = (input.len() as u64) * 8;
-            [
-                (ml >> 56) as u8,
-                (ml >> 48) as u8,
-                (ml >> 40) as u8,
-                (ml >> 32) as u8,
-                (ml >> 24) as u8,
-                (ml >> 16) as u8,
-                (ml >> 8) as u8,
-                ml as u8
-            ]
-        };
-
         let padding = 64 - ((input.len() + 9) % 64);
 
         let mut msg = input.iter()
             .map(|x| *x)
             .chain(iter::once(0x80u8))
             .chain(iter::repeat(0u8).take(padding))
-            .chain(ml_bytes.into_iter().map(|x| *x));
+            .chain(U64BytesIterator::new((input.len() as u64) * 8));
 
         let mut w = [Default::default(); 80];
 
@@ -113,10 +97,39 @@ pub fn hmac<H: HashAlgorithm>(key: &[u8], msg: &[u8], hash: H) -> H::Output {
     hash.compute_hash(&outer)
 }
 
+struct U64BytesIterator {
+    value: u64,
+    pos: u8
+}
+
+impl U64BytesIterator {
+    fn new(v: u64) -> U64BytesIterator {
+        U64BytesIterator { value: v, pos: 64 }
+    }
+}
+
+impl Iterator for U64BytesIterator {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<u8> {
+        if self.pos == 0 { None }
+        else {
+            self.pos -= 8;
+            Some((self.value >> self.pos) as u8)
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) { (8, Some(8)) }
+}
+
+impl ExactSizeIterator for U64BytesIterator {
+    fn len(&self) -> usize { 8 }
+}
+
 #[cfg(test)]
 mod tests {
     use security::*;
-    use serialize::hex::{FromHex, ToHex};
+    use rustc_serialize::hex::{FromHex, ToHex};
     fn from_hex(x: &str) -> Vec<u8> { x.from_hex().unwrap() }
 
     #[test]
