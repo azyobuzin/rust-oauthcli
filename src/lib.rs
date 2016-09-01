@@ -5,13 +5,14 @@ extern crate rustc_serialize;
 extern crate time;
 extern crate url;
 
-mod security;
+pub mod security;
 
 use security::*;
 use std::ascii::AsciiExt;
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt::{self, Write};
+use std::iter;
 use rand::Rng;
 use rustc_serialize::base64::{self, ToBase64};
 use url::{Url, percent_encoding};
@@ -59,36 +60,15 @@ fn percent_encode(input: &str) -> percent_encoding::PercentEncode<OAUTH_ENCODE_S
     percent_encoding::utf8_percent_encode(input, OAUTH_ENCODE_SET)
 }
 
+#[derive(Debug, Clone)]
 pub struct OAuthAuthorizationHeader {
-    pub parameter: String
+    pub auth_param: String
 }
 
 impl fmt::Display for OAuthAuthorizationHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "OAuth {}", self.parameter)
+        write!(f, "OAuth {}", self.auth_param)
     }
-}
-
-impl fmt::Debug for OAuthAuthorizationHeader {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self, f)
-    }
-}
-
-pub struct OAuthHeaderBuilder<'a> {
-    method: &'a str,
-    url: &'a Url,
-    parameters: Vec<(Cow<'a, str>, Cow<'a, str>)>,
-    consumer_key: &'a str,
-    consumer_secret: &'a str,
-    signature_method: SignatureMethod,
-    realm: Option<&'a str>,
-    token: Option<(&'a str, &'a str)>,
-    timestamp: Option<u64>,
-    nonce: Option<&'a str>,
-    callback: Option<&'a str>,
-    verifier: Option<&'a str>,
-    include_version: bool
 }
 
 fn base_string_url(url: &Url) -> String {
@@ -140,39 +120,47 @@ fn normalize_parameters<'a, P>(params: P) -> String
     result
 }
 
-fn signature_base_string<'a>(method: &'a str, url: &Url, oauth_params: &[(&'static str, Cow<'a, str>)], other_params: Vec<(Cow<'a, str>, Cow<'a, str>)>) -> String {
-    let params = oauth_params.iter()
-        .map(|&(k, ref v)| (k.into(), v.clone()))
-        .chain(other_params.into_iter())
-        .chain(url.query_pairs());
-
-    format!(
-        "{}&{}&{}",
-        method.to_ascii_uppercase(),
-        percent_encode(&base_string_url(url)),
-        percent_encode(&normalize_parameters(params))
-    )
-}
-
 fn gen_timestamp() -> u64 {
     let x = time::now_utc().to_timespec().sec;
     assert!(x > 0);
     return x as u64;
 }
 
-fn gen_nonce() -> String {
+/// Generate a string for `oauth_timestamp`.
+#[deprecated(since = "1.0.0")]
+pub fn timestamp() -> String {
+    gen_timestamp().to_string()
+}
+
+/// Generate a string for `oauth_nonce`.
+pub fn nonce() -> String {
     rand::thread_rng().gen_ascii_chars()
         .take(42).collect()
 }
 
-impl<'a> OAuthHeaderBuilder<'a> {
-    pub fn new<K, V, P>(method: &'a str, url: &'a Url, parameters: P, consumer_key: &'a str, consumer_secret: &'a str, signature_method: SignatureMethod) -> OAuthHeaderBuilder<'a>
-        where K: Into<Cow<'a, str>>, V: Into<Cow<'a, str>>, P: Iterator<Item=(K, V)>
+pub struct OAuthAuthorizationHeaderBuilder<'a> {
+    method: &'a str,
+    url: &'a Url,
+    parameters: Vec<(Cow<'a, str>, Cow<'a, str>)>,
+    consumer_key: &'a str,
+    consumer_secret: &'a str,
+    signature_method: SignatureMethod,
+    realm: Option<&'a str>,
+    token: Option<(&'a str, &'a str)>,
+    timestamp: Option<u64>,
+    nonce: Option<&'a str>,
+    callback: Option<&'a str>,
+    verifier: Option<&'a str>,
+    include_version: bool
+}
+
+impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
+    pub fn new(method: &'a str, url: &'a Url, consumer_key: &'a str, consumer_secret: &'a str, signature_method: SignatureMethod) -> Self
     {
-        OAuthHeaderBuilder {
+        OAuthAuthorizationHeaderBuilder {
             method: method,
             url: url,
-            parameters: parameters.map(|(k, v)| (k.into(), v.into())).collect(),
+            parameters: Vec::new(),
             consumer_key: consumer_key,
             consumer_secret: consumer_secret,
             signature_method: signature_method,
@@ -184,6 +172,13 @@ impl<'a> OAuthHeaderBuilder<'a> {
             verifier: None,
             include_version: true
         }
+    }
+
+    pub fn request_parameters<K, V, P>(&mut self, parameters: P) -> &mut Self
+        where K: Into<Cow<'a, str>>, V: Into<Cow<'a, str>>, P: IntoIterator<Item=(K, V)>
+    {
+        self.parameters.extend(parameters.into_iter().map(|(k, v)| (k.into(), v.into())));
+        self
     }
 
     pub fn realm(&mut self, realm: &'a str) -> &mut Self {
@@ -220,6 +215,8 @@ impl<'a> OAuthHeaderBuilder<'a> {
         self
     }
 
+    /// Sets the value that indicates whether the builder includes `"oauth_version"` parameter.
+    /// The default is `true`.
     pub fn include_version(&mut self, include_version: bool) -> &mut Self {
         self.include_version = include_version;
         self
@@ -233,7 +230,7 @@ impl<'a> OAuthHeaderBuilder<'a> {
         p.push(("oauth_timestamp", self.timestamp.unwrap_or_else(gen_timestamp).to_string().into()));
         p.push(("oauth_nonce", match self.nonce {
             Some(x) => x.into(),
-            None => gen_nonce().into()
+            None => nonce().into()
         }));
         if let Some((token, _)) = self.token { p.push(("oauth_token", token.into())) }
         if let Some(x) = self.callback { p.push(("oauth_callback", x.into())) }
@@ -243,25 +240,82 @@ impl<'a> OAuthHeaderBuilder<'a> {
         p
     }
 
-    fn signature(&self, base_string: String) -> String {
-        let mut key = format!("{}&", percent_encode(self.consumer_secret));
-
-        if let Some((_, token_secret)) = self.token {
-            write!(&mut key, "{}", percent_encode(token_secret)).unwrap();
-        }
-
-        match self.signature_method {
-            SignatureMethod::HmacSha1 =>
-                hmac(key.as_bytes(), base_string.as_bytes(), Sha1)
-                    .to_base64(base64::STANDARD),
-            SignatureMethod::Plaintext => key
-        }
-    }
-
     pub fn finish(self) -> OAuthAuthorizationHeader {
         let oauth_params = self.oauth_parameters();
-        let base_string = signature_base_string(self.method, self.url, &oauth_params, self.parameters);
 
-        unimplemented!()
+        let signature = {
+            let base_string = {
+                let params = oauth_params.iter()
+                    .map(|&(k, ref v)| (k.into(), v.clone()))
+                    .chain(self.parameters.into_iter())
+                    .chain(self.url.query_pairs());
+
+                format!(
+                    "{}&{}&{}",
+                    self.method.to_ascii_uppercase(),
+                    percent_encode(&base_string_url(self.url)),
+                    percent_encode(&normalize_parameters(params))
+                )
+            };
+
+            let mut key = format!("{}&", percent_encode(self.consumer_secret));
+
+            if let Some((_, token_secret)) = self.token {
+                write!(&mut key, "{}", percent_encode(token_secret)).unwrap();
+            }
+
+            match self.signature_method {
+                SignatureMethod::HmacSha1 =>
+                    hmac(key.as_bytes(), base_string.as_bytes(), Sha1)
+                        .to_base64(base64::STANDARD),
+                SignatureMethod::Plaintext => key
+            }
+        };
+
+        let mut oauth_params = self.realm.map(|x| ("realm".into(), x.into())).into_iter()
+            .chain(oauth_params.into_iter())
+            .chain(iter::once(("oauth_signature".into(), signature.into())));
+
+        let mut result = String::new();
+        let mut first = true;
+
+        while let Some((k, v)) = oauth_params.next() {
+            if first { first = false; }
+            else { result.push(','); }
+
+            write!(&mut result, "{}=\"{}\"",
+                percent_encode(&k), percent_encode(&v)).unwrap();
+        }
+
+        OAuthAuthorizationHeader { auth_param: result }
     }
+}
+
+/// Generate `Authorization` header for OAuth.
+/// The return value starts with `"OAuth "`.
+#[deprecated(since = "1.0.0", note = "Use OAuthAuthorizationHeaderBuilder")]
+pub fn authorization_header<P>(method: &str, url: Url, realm: Option<&str>,
+    consumer_key: &str, consumer_secret: &str, token: Option<&str>,
+    token_secret: Option<&str>, signature_method: SignatureMethod,
+    timestamp: &str, nonce: &str, callback: Option<&str>,
+    verifier: Option<&str>, params: P)
+    -> String where P: Iterator<Item = (String, String)>
+{
+    let mut builder = OAuthAuthorizationHeaderBuilder::new(method, &url, consumer_key, consumer_secret, signature_method);
+
+    builder.request_parameters(params)
+        .timestamp(timestamp.parse().expect("Couldn't parse `timestamp` parameter"))
+        .nonce(nonce);
+
+    match (token, token_secret) {
+        (Some(x), Some(y)) => { builder.token(x, y); },
+        (None, None) => (),
+        (Some(_), None) | (None, Some(_)) => panic!("Both `token` and `token_secret` parameter are required")
+    }
+
+    if let Some(x) = realm { builder.realm(x); }
+    if let Some(x) = callback { builder.callback(x); }
+    if let Some(x) = verifier { builder.verifier(x); }
+
+    builder.finish().to_string()
 }
