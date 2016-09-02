@@ -1,4 +1,5 @@
 //! Yet Another OAuth 1.0 Client Library for Rust
+// TODO: Write examples.
 
 extern crate rand;
 extern crate rustc_serialize;
@@ -6,11 +7,11 @@ extern crate time;
 extern crate url;
 
 pub mod security;
+#[cfg(test)] mod tests;
 
 use security::*;
 use std::ascii::AsciiExt;
 use std::borrow::Cow;
-use std::cmp::Ordering;
 use std::fmt::{self, Write};
 use std::iter;
 use rand::Rng;
@@ -60,8 +61,17 @@ fn percent_encode(input: &str) -> percent_encoding::PercentEncode<OAUTH_ENCODE_S
     percent_encoding::utf8_percent_encode(input, OAUTH_ENCODE_SET)
 }
 
+/// `Authorization` header for OAuth.
+///
+/// # Example
+/// ```
+/// # use oauthcli::OAuthAuthorizationHeader;
+/// let header = OAuthAuthorizationHeader { auth_param: "oauth_consumer_key=...".to_string() };
+/// assert_eq!(header.to_string(), "OAuth oauth_consumer_key=...");
+/// ```
 #[derive(Debug, Clone)]
 pub struct OAuthAuthorizationHeader {
+    /// `auth-param` in RFC 7235
     pub auth_param: String
 }
 
@@ -74,16 +84,15 @@ impl fmt::Display for OAuthAuthorizationHeader {
 fn base_string_url(url: &Url) -> String {
     let scheme = url.scheme();
 
-    assert!(match scheme { "http" | "https" => true, _ => false });
-
     let mut result = String::with_capacity(url.as_str().len());
 
-    write!(&mut result, "{}://{}", scheme, url.host_str().expect("The host is None").to_ascii_lowercase()).unwrap();
+    write!(&mut result, "{}://{}", scheme, url.host_str().expect("The host is None")).unwrap();
 
     if let Some(p) = url.port() {
         match (scheme, p) {
             ("http", 80) | ("https", 443) => (),
-            _ => write!(&mut result, ":{}", p).unwrap()
+            ("http", p) | ("https", p) => write!(&mut result, ":{}", p).unwrap(),
+            _ => panic!("The scheme is not \"http\" or \"https\"")
         }
     }
 
@@ -98,16 +107,11 @@ fn normalize_parameters<'a, P>(params: P) -> String
         .map(|(k, v)| (percent_encode(&k).to_string(), percent_encode(&v).to_string()))
         .collect();
 
-    mutparams.sort_by(|&(ref k1, ref v1), &(ref k2, ref v2)| {
-        match k1.cmp(k2) {
-            Ordering::Equal => v1.cmp(v2),
-            x => x
-        }
-    });
-
     let mut result = String::new();
 
     if mutparams.len() > 0 {
+        mutparams.sort();
+
         let mut first = true;
         for (key, val) in mutparams.into_iter() {
             if first { first = false; }
@@ -139,33 +143,36 @@ pub fn nonce() -> String {
 }
 
 pub struct OAuthAuthorizationHeaderBuilder<'a> {
-    method: &'a str,
+    method: Cow<'a, str>,
     url: &'a Url,
     parameters: Vec<(Cow<'a, str>, Cow<'a, str>)>,
-    consumer_key: &'a str,
-    consumer_secret: &'a str,
+    consumer_key: Cow<'a, str>,
+    consumer_secret: Cow<'a, str>,
     signature_method: SignatureMethod,
-    realm: Option<&'a str>,
-    token: Option<(&'a str, &'a str)>,
+    realm: Option<Cow<'a, str>>,
+    token: Option<Cow<'a, str>>,
+    token_secret: Option<Cow<'a, str>>,
     timestamp: Option<u64>,
-    nonce: Option<&'a str>,
-    callback: Option<&'a str>,
-    verifier: Option<&'a str>,
+    nonce: Option<Cow<'a, str>>,
+    callback: Option<Cow<'a, str>>,
+    verifier: Option<Cow<'a, str>>,
     include_version: bool
 }
 
 impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
-    pub fn new(method: &'a str, url: &'a Url, consumer_key: &'a str, consumer_secret: &'a str, signature_method: SignatureMethod) -> Self
+    pub fn new<M, C, S>(method: M, url: &'a Url, consumer_key: C, consumer_secret: S, signature_method: SignatureMethod) -> Self
+        where M: Into<Cow<'a, str>>, C: Into<Cow<'a, str>>, S: Into<Cow<'a, str>>
     {
         OAuthAuthorizationHeaderBuilder {
-            method: method,
+            method: method.into(),
             url: url,
             parameters: Vec::new(),
-            consumer_key: consumer_key,
-            consumer_secret: consumer_secret,
+            consumer_key: consumer_key.into(),
+            consumer_secret: consumer_secret.into(),
             signature_method: signature_method,
             realm: None,
             token: None,
+            token_secret: None,
             timestamp: None,
             nonce: None,
             callback: None,
@@ -181,13 +188,16 @@ impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
         self
     }
 
-    pub fn realm(&mut self, realm: &'a str) -> &mut Self {
-        self.realm = Some(realm);
+    pub fn realm<T: Into<Cow<'a, str>>>(&mut self, realm: T) -> &mut Self {
+        self.realm = Some(realm.into());
         self
     }
 
-    pub fn token(&mut self, token: &'a str, secret: &'a str) -> &mut Self {
-        self.token = Some((token, secret));
+    pub fn token<T, S>(&mut self, token: T, secret: S) -> &mut Self
+        where T: Into<Cow<'a, str>>, S: Into<Cow<'a, str>>
+    {
+        self.token = Some(token.into());
+        self.token_secret = Some(secret.into());
         self
     }
 
@@ -200,18 +210,18 @@ impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
 
     /// Sets a custom nonce.
     /// If you don't call `nonce()`, it will use a random string.
-    pub fn nonce(&mut self, nonce: &'a str) -> &mut Self {
-        self.nonce = Some(nonce);
+    pub fn nonce<T: Into<Cow<'a, str>>>(&mut self, nonce: T) -> &mut Self {
+        self.nonce = Some(nonce.into());
         self
     }
 
-    pub fn callback(&mut self, callback: &'a str) -> &mut Self {
-        self.callback = Some(callback);
+    pub fn callback<T: Into<Cow<'a, str>>>(&mut self, callback: T) -> &mut Self {
+        self.callback = Some(callback.into());
         self
     }
 
-    pub fn verifier(&mut self, verifier: &'a str) -> &mut Self {
-        self.verifier = Some(verifier);
+    pub fn verifier<T: Into<Cow<'a, str>>>(&mut self, verifier: T) -> &mut Self {
+        self.verifier = Some(verifier.into());
         self
     }
 
@@ -222,26 +232,28 @@ impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
         self
     }
 
-    fn oauth_parameters(&self) -> Vec<(&'static str, Cow<'a, str>)> {
-        let mut p = Vec::with_capacity(8);
-
-        p.push(("oauth_consumer_key", self.consumer_key.into()));
-        p.push(("oauth_signature_method", self.signature_method.to_str().into()));
-        p.push(("oauth_timestamp", self.timestamp.unwrap_or_else(gen_timestamp).to_string().into()));
-        p.push(("oauth_nonce", match self.nonce {
-            Some(x) => x.into(),
-            None => nonce().into()
-        }));
-        if let Some((token, _)) = self.token { p.push(("oauth_token", token.into())) }
-        if let Some(x) = self.callback { p.push(("oauth_callback", x.into())) }
-        if let Some(x) = self.verifier { p.push(("oauth_verifier", x.into())) }
-        if self.include_version { p.push(("oauth_version", "1.0".into())) }
-
-        p
-    }
-
+    /// Generate `Authorization` header for OAuth.
+    ///
+    /// # Panics
+    /// This function will panic if the `url` is not valid for HTTP or HTTPS.
     pub fn finish(self) -> OAuthAuthorizationHeader {
-        let oauth_params = self.oauth_parameters();
+        let oauth_params = {
+            let mut p = Vec::with_capacity(8);
+
+            p.push(("oauth_consumer_key", self.consumer_key));
+            p.push(("oauth_signature_method", self.signature_method.to_str().into()));
+            p.push(("oauth_timestamp", self.timestamp.unwrap_or_else(gen_timestamp).to_string().into()));
+            p.push(("oauth_nonce", match self.nonce {
+                Some(x) => x,
+                None => nonce().into()
+            }));
+            if let Some(x) = self.token { p.push(("oauth_token", x)) }
+            if let Some(x) = self.callback { p.push(("oauth_callback", x)) }
+            if let Some(x) = self.verifier { p.push(("oauth_verifier", x)) }
+            if self.include_version { p.push(("oauth_version", "1.0".into())) }
+
+            p
+        };
 
         let signature = {
             let base_string = {
@@ -258,10 +270,10 @@ impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
                 )
             };
 
-            let mut key = format!("{}&", percent_encode(self.consumer_secret));
+            let mut key = format!("{}&", percent_encode(&self.consumer_secret));
 
-            if let Some((_, token_secret)) = self.token {
-                write!(&mut key, "{}", percent_encode(token_secret)).unwrap();
+            if let Some(x) = self.token_secret {
+                key.extend(percent_encode(&x));
             }
 
             match self.signature_method {
@@ -293,6 +305,9 @@ impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
 
 /// Generate `Authorization` header for OAuth.
 /// The return value starts with `"OAuth "`.
+///
+/// # Panics
+/// This function will panic if either `token` or `token_secret` is specified.
 #[deprecated(since = "1.0.0", note = "Use OAuthAuthorizationHeaderBuilder")]
 pub fn authorization_header<P>(method: &str, url: Url, realm: Option<&str>,
     consumer_key: &str, consumer_secret: &str, token: Option<&str>,
