@@ -13,9 +13,9 @@ before_script:
   - popd
 
 script:
-  - cargo build
+  - cargo build --features hyper
   - cargo test
-  - cargo doc
+  - cargo doc --features hyper
 
 after_success:
   - cd target/doc

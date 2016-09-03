@@ -55,7 +55,7 @@ fn base_string_url_test() {
 
 #[test]
 fn normalize_parameters_test() {
-    use super::normalize_parameters;
+    use super::{normalize_parameters, percent_encode_parameters};
 
     let params = [
         ("b5", "=%3D"),
@@ -72,7 +72,11 @@ fn normalize_parameters_test() {
     ];
 
     assert_eq!(
-        normalize_parameters(params.into_iter().map(|&(k, v)| (k.into(), v.into()))),
+        normalize_parameters(
+            percent_encode_parameters(
+                params.into_iter().map(|&(k, v)| (k.into(), v.into()))
+            )
+        ),
         concat!(
             "a2=r%20b&a3=2%20q&a3=a&b5=%3D%253D&c%40=&c2=&oauth_consumer_key=9dj",
             "dj82h48djs9d2&oauth_nonce=7d8f3e4a&oauth_signature_method=HMAC-SHA1",
