@@ -12,7 +12,7 @@ pub mod security;
 
 use security::*;
 use std::ascii::AsciiExt;
-use std::borrow::Cow;
+use std::borrow::{Borrow, Cow};
 use std::fmt::{self, Write};
 use std::iter;
 use rand::Rng;
@@ -267,17 +267,25 @@ impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
     }
 
     fn finish_impl(self, for_twitter: bool) -> OAuthAuthorizationHeader {
+        let tmp_timestamp = self.timestamp.unwrap_or_else(gen_timestamp).to_string();
+        let tmp_nonce;
         let oauth_params = {
             let mut p = Vec::with_capacity(8);
 
-            p.push(("oauth_consumer_key", self.consumer_key));
-            if let Some(x) = self.token { p.push(("oauth_token", x)) }
-            p.push(("oauth_signature_method", self.signature_method.to_str().into()));
-            p.push(("oauth_timestamp", self.timestamp.unwrap_or_else(gen_timestamp).to_string().into()));
-            p.push(("oauth_nonce", self.nonce.unwrap_or_else(|| nonce().into())));
-            if let Some(x) = self.callback { p.push(("oauth_callback", x)) }
-            if let Some(x) = self.verifier { p.push(("oauth_verifier", x)) }
-            if self.include_version { p.push(("oauth_version", "1.0".into())) }
+            p.push(("oauth_consumer_key", self.consumer_key.borrow()));
+            if let Some(ref x) = self.token { p.push(("oauth_token", x.borrow())) }
+            p.push(("oauth_signature_method", self.signature_method.to_str()));
+            p.push(("oauth_timestamp", &tmp_timestamp));
+            p.push(("oauth_nonce", match self.nonce {
+                Some(ref x) => x.borrow(),
+                None => {
+                    tmp_nonce = nonce();
+                    &tmp_nonce
+                }
+            }));
+            if let Some(ref x) = self.callback { p.push(("oauth_callback", x.borrow())) }
+            if let Some(ref x) = self.verifier { p.push(("oauth_verifier", x.borrow())) }
+            if self.include_version { p.push(("oauth_version", "1.0")) }
 
             p
         };
@@ -293,7 +301,7 @@ impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
             match self.signature_method {
                 SignatureMethod::HmacSha1 => {
                     let params = oauth_params.iter()
-                        .map(|&(k, ref v)| (k.into(), v.clone()))
+                        .map(|&(k, v)| (k.into(), v.into()))
                         .chain(self.parameters.into_iter());
 
                     let params =
@@ -328,9 +336,11 @@ impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
             }
         };
 
-        let mut oauth_params = self.realm.map(|x| ("realm".into(), x.into())).into_iter()
+        let mut oauth_params = self.realm.as_ref()
+            .map(|x| ("realm", x.borrow()))
+            .into_iter()
             .chain(oauth_params.into_iter())
-            .chain(iter::once(("oauth_signature".into(), signature.into())));
+            .chain(iter::once(("oauth_signature", signature.borrow())));
 
         let mut result = String::new();
         let mut first = true;
