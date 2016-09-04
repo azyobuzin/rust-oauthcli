@@ -6,7 +6,7 @@ description = "Implementation of OAuth 1.0 Client without curl dependency"
 documentation = "http://azyobuzin.github.io/rust-oauthcli/oauthcli/"
 repository = "https://github.com/azyobuzin/rust-oauthcli"
 keywords = ["oauth"]
-license = "WTFPL"
+license = "MIT"
 
 [dependencies]
 rand = "0.3"

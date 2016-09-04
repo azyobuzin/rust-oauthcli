@@ -1,5 +1,25 @@
 //! Yet Another OAuth 1.0 Client Library for Rust
-// TODO: Write examples.
+//!
+//! # Examples
+//! Basic sample:
+//!
+//! ```
+//! # extern crate url;
+//! # extern crate oauthcli;
+//! # use oauthcli::*;
+//! # fn main() {
+//! let url = url::Url::parse("http://example.com/").unwrap();
+//! let header =
+//!     OAuthAuthorizationHeaderBuilder::new(
+//!         "GET", &url, "consumer", "secret", SignatureMethod::HmacSha1)
+//!     .token("token", "secret")
+//!     .finish();
+//! # }
+//! ```
+//!
+//! If you use for Twitter, because of Twitter's bug, use `finish_for_twitter` method,
+//! and make sure to encode the request body with `OAUTH_ENCODE_SET`.
+//! For more detail, see [this article](http://azyobuzin.hatenablog.com/entry/2015/04/18/232516) (Japanese).
 
 extern crate rand;
 extern crate rustc_serialize;
@@ -13,11 +33,13 @@ pub mod security;
 use security::*;
 use std::ascii::AsciiExt;
 use std::borrow::{Borrow, Cow};
+use std::error::Error;
 use std::fmt::{self, Write};
 use std::iter;
 use rand::Rng;
 use rustc_serialize::base64::{self, ToBase64};
-use url::{Url, percent_encoding};
+use url::Url;
+use url::percent_encoding::{EncodeSet, PercentEncode, utf8_percent_encode};
 
 /// Available `oauth_signature_method` types.
 #[derive(Copy, Debug, PartialEq, Eq, Clone, Hash)]
@@ -48,7 +70,7 @@ impl fmt::Display for SignatureMethod {
 #[allow(non_camel_case_types)]
 pub struct OAUTH_ENCODE_SET;
 
-impl percent_encoding::EncodeSet for OAUTH_ENCODE_SET {
+impl EncodeSet for OAUTH_ENCODE_SET {
     fn contains(&self, byte: u8) -> bool {
         !((byte >= 0x30 && byte <= 0x39)
         || (byte >= 0x41 && byte <= 0x5A)
@@ -58,8 +80,31 @@ impl percent_encoding::EncodeSet for OAUTH_ENCODE_SET {
     }
 }
 
-fn percent_encode(input: &str) -> percent_encoding::PercentEncode<OAUTH_ENCODE_SET> {
-    percent_encoding::utf8_percent_encode(input, OAUTH_ENCODE_SET)
+fn percent_encode(input: &str) -> PercentEncode<OAUTH_ENCODE_SET> {
+    utf8_percent_encode(input, OAUTH_ENCODE_SET)
+}
+
+#[derive(Copy, Debug, PartialEq, Eq, Clone, Hash)]
+pub enum ParseOAuthAuthorizationHeaderError {
+    /// The input is violating auth-param format.
+    FormatError,
+    /// The input is not completely escaped with `OAUTH_ENCODE_SET`.
+    EscapeError
+}
+
+impl Error for ParseOAuthAuthorizationHeaderError {
+    fn description(&self) -> &str {
+        match *self {
+            ParseOAuthAuthorizationHeaderError::FormatError => "The input is violating auth-param format",
+            ParseOAuthAuthorizationHeaderError::EscapeError => "The input is not completely escaped with `OAUTH_ENCODE_SET`"
+        }
+    }
+}
+
+impl fmt::Display for ParseOAuthAuthorizationHeaderError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(self.description())
+    }
 }
 
 /// `Authorization` header for OAuth.
@@ -69,28 +114,79 @@ fn percent_encode(input: &str) -> percent_encoding::PercentEncode<OAUTH_ENCODE_S
 /// # Example
 /// ```
 /// # use oauthcli::OAuthAuthorizationHeader;
-/// let header = OAuthAuthorizationHeader { auth_param: "oauth_consumer_key=...".to_string() };
-/// assert_eq!(header.to_string(), "OAuth oauth_consumer_key=...");
+/// let header: OAuthAuthorizationHeader = "oauth_consumer_key=\"foo\"".parse().unwrap();
+/// assert_eq!(header.to_string(), "OAuth oauth_consumer_key=\"foo\"");
 /// ```
 #[derive(Debug, Clone)]
 pub struct OAuthAuthorizationHeader {
+    s: String
+}
+
+impl OAuthAuthorizationHeader {
     /// `auth-param` in RFC 7235
-    pub auth_param: String
+    pub fn auth_param(&self) -> &str {
+        &self.s
+    }
+
+    pub fn auth_param_owned(self) -> String {
+        self.s
+    }
 }
 
 impl fmt::Display for OAuthAuthorizationHeader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(f.write_str("OAuth "));
-        f.write_str(&self.auth_param)
+        f.write_str(&self.s)
     }
 }
 
 impl std::str::FromStr for OAuthAuthorizationHeader {
-    type Err = ();
+    type Err = ParseOAuthAuthorizationHeaderError;
 
-    fn from_str(s: &str) -> Result<OAuthAuthorizationHeader, ()> {
-        // クソ雑
-        Ok(OAuthAuthorizationHeader { auth_param: s.to_owned() })
+    fn from_str(s: &str) -> Result<OAuthAuthorizationHeader, ParseOAuthAuthorizationHeaderError> {
+        fn is_hex(x: u8) -> bool {
+            (x >= 0x30 && x <= 0x39) ||
+            (x >= 0x41 && x <= 0x46) ||
+            (x >= 0x61 && x <= 0x66)
+        }
+
+        fn check(s: &str) -> bool {
+            let mut i = s.as_bytes().iter();
+            while let Some(&c) = i.next() {
+                match c {
+                    0x25 => {
+                        if let (Some(&a), Some(&b)) = (i.next(), i.next()) {
+                            if !(is_hex(a) && is_hex(b)) { return false; }
+                        } else {
+                            return false;
+                        }
+                    },
+                    c => if OAUTH_ENCODE_SET.contains(c) { return false; }
+                }
+            }
+
+            true
+        }
+
+        for pair in s.split(',').map(|x| x.trim()).filter(|x| x.len() > 0) {
+            if let Some(equal_index) = pair.find('=') {
+                if !check(pair[0..equal_index].trim_right()) {
+                    return Err(ParseOAuthAuthorizationHeaderError::EscapeError);
+                }
+
+                let val = pair[equal_index+1..].trim_left();
+                if !val.starts_with('"') || !val.ends_with('"') {
+                    return Err(ParseOAuthAuthorizationHeaderError::FormatError);
+                }
+                if !check(&val[1..val.len()-1]) {
+                    return Err(ParseOAuthAuthorizationHeaderError::EscapeError);
+                }
+            } else {
+                return Err(ParseOAuthAuthorizationHeaderError::FormatError);
+            }
+        }
+
+        Ok(OAuthAuthorizationHeader { s: s.to_owned() })
     }
 }
 
@@ -101,7 +197,7 @@ impl hyper::header::Scheme for OAuthAuthorizationHeader {
     }
 
     fn fmt_scheme(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(&self.auth_param)
+        f.write_str(&self.s)
     }
 }
 
@@ -266,7 +362,54 @@ impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
         self
     }
 
-    fn finish_impl(self, for_twitter: bool) -> OAuthAuthorizationHeader {
+    fn signature(&self, oauth_params: &[(&'a str, &'a str)], for_twitter: bool) -> String {
+        let mut key: String = percent_encode(&self.consumer_secret).collect();
+        key.push('&');
+
+        if let &Some(ref x) = &self.token_secret {
+            key.extend(percent_encode(&x));
+        }
+
+        match &self.signature_method {
+            &SignatureMethod::HmacSha1 => {
+                let params = oauth_params.iter()
+                    .map(|&(k, v)| (k.into(), v.into()))
+                    .chain(self.parameters.iter()
+                        .map(|&(ref k, ref v)| (Cow::Borrowed(k.borrow()), Cow::Borrowed(v.borrow()))));
+
+                let params =
+                    if for_twitter {
+                        // Workaround for Twitter: don't re-encode the query
+                        let PercentEncodedParameters(mut x) = percent_encode_parameters(params);
+
+                        if let Some(query) = self.url.query() {
+                            for pair in query.split('&').filter(|x| x.len() > 0) {
+                                let mut pair_iter = pair.splitn(2, '=');
+                                let key = pair_iter.next().unwrap();
+                                let val = pair_iter.next().unwrap_or("");
+                                x.push((key.into(), val.into()));
+                            }
+                        }
+
+                        PercentEncodedParameters(x)
+                    } else {
+                        percent_encode_parameters(params.chain(self.url.query_pairs()))
+                    };
+
+                let mut base_string = self.method.to_ascii_uppercase();
+                base_string.push('&');
+                base_string.extend(percent_encode(&base_string_url(self.url)));
+                base_string.push('&');
+                base_string.extend(percent_encode(&normalize_parameters(params)));
+
+                hmac(key.as_bytes(), base_string.as_bytes(), Sha1)
+                    .to_base64(base64::STANDARD)
+            },
+            &SignatureMethod::Plaintext => key
+        }
+    }
+
+    fn finish_impl(&self, for_twitter: bool) -> OAuthAuthorizationHeader {
         let tmp_timestamp = self.timestamp.unwrap_or_else(gen_timestamp).to_string();
         let tmp_nonce;
         let oauth_params = {
@@ -276,71 +419,27 @@ impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
             if let Some(ref x) = self.token { p.push(("oauth_token", x.borrow())) }
             p.push(("oauth_signature_method", self.signature_method.to_str()));
             p.push(("oauth_timestamp", &tmp_timestamp));
-            p.push(("oauth_nonce", match self.nonce {
-                Some(ref x) => x.borrow(),
-                None => {
+            p.push(("oauth_nonce", match &self.nonce {
+                &Some(ref x) => x.borrow(),
+                _ => {
                     tmp_nonce = nonce();
                     &tmp_nonce
                 }
             }));
-            if let Some(ref x) = self.callback { p.push(("oauth_callback", x.borrow())) }
-            if let Some(ref x) = self.verifier { p.push(("oauth_verifier", x.borrow())) }
+            if let &Some(ref x) = &self.callback { p.push(("oauth_callback", x.borrow())) }
+            if let &Some(ref x) = &self.verifier { p.push(("oauth_verifier", x.borrow())) }
             if self.include_version { p.push(("oauth_version", "1.0")) }
 
             p
         };
 
-        let signature = {
-            let mut key: String = percent_encode(&self.consumer_secret).collect();
-            key.push('&');
-
-            if let Some(x) = self.token_secret {
-                key.extend(percent_encode(&x));
-            }
-
-            match self.signature_method {
-                SignatureMethod::HmacSha1 => {
-                    let params = oauth_params.iter()
-                        .map(|&(k, v)| (k.into(), v.into()))
-                        .chain(self.parameters.into_iter());
-
-                    let params =
-                        if for_twitter {
-                            // Workaround for Twitter: don't re-encode the query
-                            let PercentEncodedParameters(mut x) = percent_encode_parameters(params);
-
-                            if let Some(query) = self.url.query() {
-                                for pair in query.split('&').filter(|x| x.len() > 0) {
-                                    let mut pair_iter = pair.splitn(2, '=');
-                                    let key = pair_iter.next().unwrap();
-                                    let val = pair_iter.next().unwrap_or("");
-                                    x.push((key.into(), val.into()));
-                                }
-                            }
-
-                            PercentEncodedParameters(x)
-                        } else {
-                            percent_encode_parameters(params.chain(self.url.query_pairs()))
-                        };
-
-                    let mut base_string = self.method.to_ascii_uppercase();
-                    base_string.push('&');
-                    base_string.extend(percent_encode(&base_string_url(self.url)));
-                    base_string.push('&');
-                    base_string.extend(percent_encode(&normalize_parameters(params)));
-
-                    hmac(key.as_bytes(), base_string.as_bytes(), Sha1)
-                        .to_base64(base64::STANDARD)
-                },
-                SignatureMethod::Plaintext => key
-            }
-        };
+        let signature = self.signature(&oauth_params, for_twitter);
 
         let mut oauth_params = self.realm.as_ref()
             .map(|x| ("realm", x.borrow()))
             .into_iter()
             .chain(oauth_params.into_iter())
-            .chain(iter::once(("oauth_signature", signature.borrow())));
+            .chain(iter::once(("oauth_signature", &signature[..])));
 
         let mut result = String::new();
         let mut first = true;
@@ -350,21 +449,21 @@ impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
             else { result.push(','); }
 
             write!(&mut result, "{}=\"{}\"",
-                percent_encode(&k), percent_encode(&v)).unwrap();
+                percent_encode(k), percent_encode(v)).unwrap();
         }
 
-        OAuthAuthorizationHeader { auth_param: result }
+        OAuthAuthorizationHeader { s: result }
     }
 
     /// Generate `Authorization` header for OAuth.
     ///
     /// # Panics
     /// This function will panic if `url` is not valid for HTTP or HTTPS.
-    pub fn finish(self) -> OAuthAuthorizationHeader {
+    pub fn finish(&self) -> OAuthAuthorizationHeader {
         self.finish_impl(false)
     }
 
-    pub fn finish_for_twitter(self) -> OAuthAuthorizationHeader {
+    pub fn finish_for_twitter(&self) -> OAuthAuthorizationHeader {
         self.finish_impl(true)
     }
 }
@@ -394,7 +493,7 @@ pub fn authorization_header<P>(method: &str, url: Url, realm: Option<&str>,
     match (token, token_secret) {
         (Some(x), Some(y)) => { builder.token(x, y); },
         (None, None) => (),
-        (Some(_), None) | (None, Some(_)) => panic!("Both `token` and `token_secret` parameter are required")
+        _ => panic!("Both `token` and `token_secret` parameter are required")
     }
 
     if let Some(x) = realm { builder.realm(x); }
