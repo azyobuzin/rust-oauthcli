@@ -145,9 +145,9 @@ impl std::str::FromStr for OAuthAuthorizationHeader {
 
     fn from_str(s: &str) -> Result<OAuthAuthorizationHeader, ParseOAuthAuthorizationHeaderError> {
         fn is_hex(x: u8) -> bool {
-            (x >= 0x30 && x <= 0x39) ||
-            (x >= 0x41 && x <= 0x46) ||
-            (x >= 0x61 && x <= 0x66)
+            (x >= b'0' && x <= b'9') ||
+            (x >= b'A' && x <= b'F') ||
+            (x >= b'a' && x <= b'f')
         }
 
         fn check(s: &str) -> bool {
@@ -168,6 +168,15 @@ impl std::str::FromStr for OAuthAuthorizationHeader {
             true
         }
 
+        // Remove "OAuth" scheme
+        let mut s = s.trim();
+        if let Some(scheme) = s.split_whitespace().next() {
+            if scheme.eq_ignore_ascii_case("OAuth") {
+                s = &scheme[5..].trim_left();
+            }
+        }
+
+        // Check each pair
         for pair in s.split(',').map(|x| x.trim()).filter(|x| x.len() > 0) {
             if let Some(equal_index) = pair.find('=') {
                 if !check(pair[0..equal_index].trim_right()) {
@@ -463,6 +472,10 @@ impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
         self.finish_impl(false)
     }
 
+    /// Generate `Authorization` header for Twitter.
+    ///
+    /// # Panics
+    /// This function will panic if `url` is not valid for HTTP or HTTPS.
     pub fn finish_for_twitter(&self) -> OAuthAuthorizationHeader {
         self.finish_impl(true)
     }
