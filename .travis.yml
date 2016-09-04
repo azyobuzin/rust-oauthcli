@@ -14,7 +14,7 @@ before_script:
 
 script:
   - cargo build --features hyper
-  - cargo test
+  - cargo test --features hyper
   - cargo doc --features hyper
 
 after_success:
