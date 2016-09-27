@@ -1,5 +1,3 @@
-// https://github.com/azyobuzin/tweetust/blob/6ac670f9312a5c146f06779b66270dfbc8f71957/examples/tweet.rs
-
 extern crate hyper;
 extern crate oauthcli;
 extern crate url;

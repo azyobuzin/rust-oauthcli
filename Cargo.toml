@@ -1,15 +1,17 @@
 [package]
 name = "oauthcli"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["azyobuzin <azyobuzin@users.sourceforge.jp>"]
-description = "Implementation of OAuth 1.0 Client without curl dependency"
+description = "Implementation of OAuth 1.0 (and Twitter's f*ckin' OAuth) Client"
 documentation = "http://azyobuzin.github.io/rust-oauthcli/oauthcli/"
 repository = "https://github.com/azyobuzin/rust-oauthcli"
+readme = "README.md"
 keywords = ["oauth"]
-license = "MIT"
+license = "MIT/Apache-2.0"
 
 [dependencies]
 rand = "0.3"
+rust-crypto = "0.2"
 rustc-serialize = "0.3"
 time = "0.1"
 url = "1.2"

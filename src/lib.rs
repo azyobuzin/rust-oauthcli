@@ -6,7 +6,7 @@
 //! ```
 //! # extern crate url;
 //! # extern crate oauthcli;
-//! # use oauthcli::*;
+//! use oauthcli::*;
 //! # fn main() {
 //! let url = url::Url::parse("http://example.com/").unwrap();
 //! let header =
@@ -21,23 +21,20 @@
 //! and make sure to encode the request body with `OAUTH_ENCODE_SET`.
 //! For more detail, see [this article](http://azyobuzin.hatenablog.com/entry/2015/04/18/232516) (Japanese).
 
+extern crate crypto;
 extern crate rand;
 extern crate rustc_serialize;
 extern crate time;
 extern crate url;
 #[cfg(feature="hyper")] extern crate hyper;
 
-pub mod security;
 #[cfg(test)] mod tests;
 
-use security::*;
 use std::ascii::AsciiExt;
 use std::borrow::{Borrow, Cow};
 use std::error::Error;
 use std::fmt::{self, Write};
 use std::iter;
-use rand::Rng;
-use rustc_serialize::base64::{self, ToBase64};
 use url::Url;
 use url::percent_encoding::{EncodeSet, PercentEncode, utf8_percent_encode};
 
@@ -277,8 +274,26 @@ pub fn timestamp() -> String {
 
 /// Generate a string for `oauth_nonce`.
 pub fn nonce() -> String {
+    use rand::Rng;
+
     rand::thread_rng().gen_ascii_chars()
         .take(42).collect()
+}
+
+fn hmac_sha1_base64(key: &[u8], msg: &[u8]) -> String {
+    use crypto::mac::Mac;
+    use crypto::{hmac, sha1};
+    use rustc_serialize::base64::{self, ToBase64};
+
+    let mut hmac = hmac::Hmac::new(sha1::Sha1::new(), key);
+    debug_assert_eq!(20, hmac.output_bytes());
+
+    hmac.input(msg);
+    
+    let mut mac = [0u8; 20];
+    hmac.raw_result(&mut mac);
+
+    mac.to_base64(base64::STANDARD)
 }
 
 pub struct OAuthAuthorizationHeaderBuilder<'a> {
@@ -411,8 +426,7 @@ impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
                 base_string.push('&');
                 base_string.extend(percent_encode(&normalize_parameters(params)));
 
-                hmac(key.as_bytes(), base_string.as_bytes(), Sha1)
-                    .to_base64(base64::STANDARD)
+                hmac_sha1_base64(key.as_bytes(), base_string.as_bytes())
             },
             &SignatureMethod::Plaintext => key
         }

@@ -3,9 +3,11 @@
 
 Yet Another OAuth 1.0 Client Library for Rust
 
+[Documentation](http://azyobuzin.github.io/rust-oauthcli/oauthcli/)
+
 # Features
-- RFC 5849 implementation
-- Very few dependencies
+- RFC 5849 implementation (without RSA-SHA1)
+- Compatible with Twitter's (f*ckin') implementation
 
 # How to Use
 ```rust
