@@ -559,6 +559,20 @@
 <span id="515">515</span>
 <span id="516">516</span>
 <span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
 </pre><pre class='rust '>
 <span class='doccomment'>//! Yet Another OAuth 1.0 Client Library for Rust</span>
 <span class='doccomment'>//!</span>
@@ -568,7 +582,7 @@
 <span class='doccomment'>//! ```</span>
 <span class='doccomment'>//! # extern crate url;</span>
 <span class='doccomment'>//! # extern crate oauthcli;</span>
-<span class='doccomment'>//! # use oauthcli::*;</span>
+<span class='doccomment'>//! use oauthcli::*;</span>
 <span class='doccomment'>//! # fn main() {</span>
 <span class='doccomment'>//! let url = url::Url::parse(&quot;http://example.com/&quot;).unwrap();</span>
 <span class='doccomment'>//! let header =</span>
@@ -583,23 +597,20 @@
 <span class='doccomment'>//! and make sure to encode the request body with `OAUTH_ENCODE_SET`.</span>
 <span class='doccomment'>//! For more detail, see [this article](http://azyobuzin.hatenablog.com/entry/2015/04/18/232516) (Japanese).</span>
 
+<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>crypto</span>;
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>rand</span>;
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>rustc_serialize</span>;
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>time</span>;
 <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>url</span>;
 <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>feature</span><span class='op'>=</span><span class='string'>&quot;hyper&quot;</span>)]</span> <span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>hyper</span>;
 
-<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>security</span>;
 <span class='attribute'>#[<span class='ident'>cfg</span>(<span class='ident'>test</span>)]</span> <span class='kw'>mod</span> <span class='ident'>tests</span>;
 
-<span class='kw'>use</span> <span class='ident'>security</span>::<span class='op'>*</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ascii</span>::<span class='ident'>AsciiExt</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>borrow</span>::{<span class='ident'>Borrow</span>, <span class='ident'>Cow</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>error</span>::<span class='ident'>Error</span>;
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>fmt</span>::{<span class='self'>self</span>, <span class='ident'>Write</span>};
 <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>iter</span>;
-<span class='kw'>use</span> <span class='ident'>rand</span>::<span class='ident'>Rng</span>;
-<span class='kw'>use</span> <span class='ident'>rustc_serialize</span>::<span class='ident'>base64</span>::{<span class='self'>self</span>, <span class='ident'>ToBase64</span>};
 <span class='kw'>use</span> <span class='ident'>url</span>::<span class='ident'>Url</span>;
 <span class='kw'>use</span> <span class='ident'>url</span>::<span class='ident'>percent_encoding</span>::{<span class='ident'>EncodeSet</span>, <span class='ident'>PercentEncode</span>, <span class='ident'>utf8_percent_encode</span>};
 
@@ -839,8 +850,26 @@
 
 <span class='doccomment'>/// Generate a string for `oauth_nonce`.</span>
 <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>nonce</span>() <span class='op'>-&gt;</span> <span class='ident'>String</span> {
+    <span class='kw'>use</span> <span class='ident'>rand</span>::<span class='ident'>Rng</span>;
+
     <span class='ident'>rand</span>::<span class='ident'>thread_rng</span>().<span class='ident'>gen_ascii_chars</span>()
         .<span class='ident'>take</span>(<span class='number'>42</span>).<span class='ident'>collect</span>()
+}
+
+<span class='kw'>fn</span> <span class='ident'>hmac_sha1_base64</span>(<span class='ident'>key</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>], <span class='ident'>msg</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>]) <span class='op'>-&gt;</span> <span class='ident'>String</span> {
+    <span class='kw'>use</span> <span class='ident'>crypto</span>::<span class='ident'>mac</span>::<span class='ident'>Mac</span>;
+    <span class='kw'>use</span> <span class='ident'>crypto</span>::{<span class='ident'>hmac</span>, <span class='ident'>sha1</span>};
+    <span class='kw'>use</span> <span class='ident'>rustc_serialize</span>::<span class='ident'>base64</span>::{<span class='self'>self</span>, <span class='ident'>ToBase64</span>};
+
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>hmac</span> <span class='op'>=</span> <span class='ident'>hmac</span>::<span class='ident'>Hmac</span>::<span class='ident'>new</span>(<span class='ident'>sha1</span>::<span class='ident'>Sha1</span>::<span class='ident'>new</span>(), <span class='ident'>key</span>);
+    <span class='macro'>debug_assert_eq</span><span class='macro'>!</span>(<span class='number'>20</span>, <span class='ident'>hmac</span>.<span class='ident'>output_bytes</span>());
+
+    <span class='ident'>hmac</span>.<span class='ident'>input</span>(<span class='ident'>msg</span>);
+    
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>mac</span> <span class='op'>=</span> [<span class='number'>0u8</span>; <span class='number'>20</span>];
+    <span class='ident'>hmac</span>.<span class='ident'>raw_result</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>mac</span>);
+
+    <span class='ident'>mac</span>.<span class='ident'>to_base64</span>(<span class='ident'>base64</span>::<span class='ident'>STANDARD</span>)
 }
 
 <span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>OAuthAuthorizationHeaderBuilder</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
@@ -973,8 +1002,7 @@
                 <span class='ident'>base_string</span>.<span class='ident'>push</span>(<span class='string'>&#39;&amp;&#39;</span>);
                 <span class='ident'>base_string</span>.<span class='ident'>extend</span>(<span class='ident'>percent_encode</span>(<span class='kw-2'>&amp;</span><span class='ident'>normalize_parameters</span>(<span class='ident'>params</span>)));
 
-                <span class='ident'>hmac</span>(<span class='ident'>key</span>.<span class='ident'>as_bytes</span>(), <span class='ident'>base_string</span>.<span class='ident'>as_bytes</span>(), <span class='ident'>Sha1</span>)
-                    .<span class='ident'>to_base64</span>(<span class='ident'>base64</span>::<span class='ident'>STANDARD</span>)
+                <span class='ident'>hmac_sha1_base64</span>(<span class='ident'>key</span>.<span class='ident'>as_bytes</span>(), <span class='ident'>base_string</span>.<span class='ident'>as_bytes</span>())
             },
             <span class='kw-2'>&amp;</span><span class='ident'>SignatureMethod</span>::<span class='ident'>Plaintext</span> <span class='op'>=&gt;</span> <span class='ident'>key</span>
         }
