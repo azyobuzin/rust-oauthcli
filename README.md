@@ -8,6 +8,7 @@ Yet Another OAuth 1.0 Client Library for Rust
 # Features
 - RFC 5849 implementation (without RSA-SHA1)
 - Compatible with Twitter's (f*ckin') implementation
+- Integration with `hyper::header::Authorization`
 
 # How to Use
 ```rust
