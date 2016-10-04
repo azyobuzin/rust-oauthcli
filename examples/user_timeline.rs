@@ -1,12 +1,14 @@
+#[cfg(feature = "hyper")]
 extern crate hyper;
 extern crate oauthcli;
 extern crate url;
 
-use std::io::Read;
-use url::Url;
-use oauthcli::{OAuthAuthorizationHeaderBuilder, SignatureMethod};
-
+#[cfg(feature = "hyper")]
 fn main() {
+    use std::io::Read;
+    use url::Url;
+    use oauthcli::{OAuthAuthorizationHeaderBuilder, SignatureMethod};
+
     let url = Url::parse("https://api.twitter.com/1.1/statuses/user_timeline.json?screen_name=azyobuzin").unwrap();
 
     // @imgazyobuzi readonly token
@@ -24,4 +26,9 @@ fn main() {
         .unwrap();
 
     println!("{}", res);
+}
+
+#[cfg(not(feature = "hyper"))]
+fn main() {
+    println!("Comple with `hyper` feature to run this example")
 }
