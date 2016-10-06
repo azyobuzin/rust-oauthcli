@@ -3,6 +3,7 @@ name = "oauthcli"
 version = "1.0.1"
 authors = ["azyobuzin <azyobuzin@users.sourceforge.jp>"]
 description = "Implementation of OAuth 1.0 (and Twitter's f*ckin' OAuth) Client"
+# Change to docs.rs in the next release
 documentation = "http://azyobuzin.github.io/rust-oauthcli/oauthcli/"
 repository = "https://github.com/azyobuzin/rust-oauthcli"
 readme = "README.md"
