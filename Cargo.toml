@@ -1,9 +1,9 @@
 [package]
 name = "oauthcli"
-version = "1.0.3"
+version = "1.0.2"
 authors = ["azyobuzin <azyobuzin@users.sourceforge.jp>"]
 description = "Implementation of OAuth 1.0 (and Twitter's f*ckin' OAuth) Client"
-documentation = "https://docs.rs/oauthcli/1.0.3/oauthcli/"
+documentation = "https://docs.rs/oauthcli/1.0.2/oauthcli/"
 repository = "https://github.com/azyobuzin/rust-oauthcli"
 readme = "README.md"
 keywords = ["oauth"]
@@ -15,8 +15,4 @@ rust-crypto = "0.2"
 rustc-serialize = "0.3"
 time = "0.1"
 url = "1"
-
-[dependencies.hyper]
-version = ">= 0.9, < 0.11"
-default-features = false
-optional = true
+hyper = { version = "0.9", default-features = false, optional = true }
