@@ -1,13 +1,17 @@
 [package]
 name = "oauthcli"
-version = "1.0.2"
+version = "1.0.4"
 authors = ["azyobuzin <azyobuzin@users.sourceforge.jp>"]
 description = "Implementation of OAuth 1.0 (and Twitter's f*ckin' OAuth) Client"
-documentation = "https://docs.rs/oauthcli/1.0.2/oauthcli/"
+documentation = "https://docs.rs/oauthcli/1.0.4/oauthcli/"
 repository = "https://github.com/azyobuzin/rust-oauthcli"
 readme = "README.md"
 keywords = ["oauth"]
+categories = ["authentication"]
 license = "MIT/Apache-2.0"
+
+[badges]
+travis-ci = { repository = "azyobuzin/rust-oauthcli" }
 
 [dependencies]
 rand = "0.3"
