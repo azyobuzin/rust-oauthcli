@@ -21,9 +21,9 @@
 //! and make sure to encode the request body with `OAUTH_ENCODE_SET`.
 //! For more detail, see [this article](http://azyobuzin.hatenablog.com/entry/2015/04/18/232516) (Japanese).
 
+extern crate base64;
 extern crate crypto;
 extern crate rand;
-extern crate rustc_serialize;
 extern crate time;
 extern crate url;
 #[cfg(feature="hyper")] extern crate hyper;
@@ -283,7 +283,6 @@ pub fn nonce() -> String {
 fn hmac_sha1_base64(key: &[u8], msg: &[u8]) -> String {
     use crypto::mac::Mac;
     use crypto::{hmac, sha1};
-    use rustc_serialize::base64::{self, ToBase64};
 
     let mut hmac = hmac::Hmac::new(sha1::Sha1::new(), key);
     debug_assert_eq!(20, hmac.output_bytes());
@@ -293,7 +292,7 @@ fn hmac_sha1_base64(key: &[u8], msg: &[u8]) -> String {
     let mut mac = [0u8; 20];
     hmac.raw_result(&mut mac);
 
-    mac.to_base64(base64::STANDARD)
+    base64::encode(&mac)
 }
 
 pub struct OAuthAuthorizationHeaderBuilder<'a> {
