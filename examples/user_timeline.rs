@@ -30,5 +30,5 @@ fn main() {
 
 #[cfg(not(feature = "hyper"))]
 fn main() {
-    println!("Comple with `hyper` feature to run this example")
+    println!("Comple with `hyper/ssl` feature to run this example")
 }

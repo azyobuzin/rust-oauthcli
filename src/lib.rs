@@ -22,8 +22,8 @@
 //! For more detail, see [this article](http://azyobuzin.hatenablog.com/entry/2015/04/18/232516) (Japanese).
 
 extern crate base64;
-extern crate crypto;
 extern crate rand;
+extern crate ring;
 extern crate time;
 extern crate url;
 #[cfg(feature="hyper")] extern crate hyper;
@@ -281,18 +281,14 @@ pub fn nonce() -> String {
 }
 
 fn hmac_sha1_base64(key: &[u8], msg: &[u8]) -> String {
-    use crypto::mac::Mac;
-    use crypto::{hmac, sha1};
+    use ring::{digest, hmac};
 
-    let mut hmac = hmac::Hmac::new(sha1::Sha1::new(), key);
-    debug_assert_eq!(20, hmac.output_bytes());
-
-    hmac.input(msg);
-    
-    let mut mac = [0u8; 20];
-    hmac.raw_result(&mut mac);
-
-    base64::encode(&mac)
+    base64::encode(
+        hmac::sign(
+            &hmac::SigningKey::new(&digest::SHA1, key),
+            msg
+        ).as_ref()
+    )
 }
 
 pub struct OAuthAuthorizationHeaderBuilder<'a> {
