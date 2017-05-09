@@ -1,6 +1,6 @@
 [package]
 name = "oauthcli"
-version = "1.0.5"
+version = "1.0.6"
 authors = ["azyobuzin <azyobuzin@users.sourceforge.jp>"]
 description = "Implementation of OAuth 1.0 (and Twitter's f*ckin' OAuth) Client"
 documentation = "https://docs.rs/oauthcli/1.0.5/oauthcli/"
@@ -16,7 +16,7 @@ travis-ci = { repository = "azyobuzin/rust-oauthcli" }
 [dependencies]
 base64 = "0.5"
 rand = "0.3"
-ring = { version = "0.8", default-features = false }
+ring = { version = "0.9.4", default-features = false }
 time = "0.1"
 url = "1"
 hyper = { version = "0.9", default-features = false, optional = true }
