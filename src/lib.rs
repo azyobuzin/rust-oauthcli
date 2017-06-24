@@ -25,8 +25,7 @@ extern crate base64;
 extern crate rand;
 extern crate ring;
 extern crate time;
-extern crate url;
-#[cfg(feature="hyper")] extern crate hyper;
+pub extern crate url;
 
 #[cfg(test)] mod tests;
 
@@ -105,8 +104,6 @@ impl fmt::Display for ParseOAuthAuthorizationHeaderError {
 }
 
 /// `Authorization` header for OAuth.
-///
-/// If you enable `"hyper"` feature, this implements `hyper::header::Scheme` trait.
 ///
 /// # Example
 /// ```
@@ -196,17 +193,6 @@ impl std::str::FromStr for OAuthAuthorizationHeader {
     }
 }
 
-#[cfg(feature="hyper")]
-impl hyper::header::Scheme for OAuthAuthorizationHeader {
-    fn scheme() -> Option<&'static str> {
-        Some("OAuth")
-    }
-
-    fn fmt_scheme(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(&self.s)
-    }
-}
-
 fn base_string_url(url: &Url) -> String {
     let scheme = url.scheme();
 
@@ -266,14 +252,8 @@ fn gen_timestamp() -> u64 {
     return x as u64;
 }
 
-/// Generate a string for `oauth_timestamp`.
-#[deprecated(since = "1.0.0")]
-pub fn timestamp() -> String {
-    gen_timestamp().to_string()
-}
-
 /// Generate a string for `oauth_nonce`.
-pub fn nonce() -> String {
+fn nonce() -> String {
     use rand::Rng;
 
     rand::thread_rng().gen_ascii_chars()
@@ -351,14 +331,14 @@ impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
     }
 
     /// Sets a custom timestamp.
-    /// If you don't call `timestamp()`, it will use the current time.
+    /// If you don't call `timestamp()`, the current time will be used.
     pub fn timestamp(&mut self, timestamp: u64) -> &mut Self {
         self.timestamp = Some(timestamp);
         self
     }
 
     /// Sets a custom nonce.
-    /// If you don't call `nonce()`, it will use a random string.
+    /// If you don't call `nonce()`, a random string will be used.
     pub fn nonce<T: Into<Cow<'a, str>>>(&mut self, nonce: T) -> &mut Self {
         self.nonce = Some(nonce.into());
         self
@@ -488,39 +468,4 @@ impl<'a> OAuthAuthorizationHeaderBuilder<'a> {
     pub fn finish_for_twitter(&self) -> OAuthAuthorizationHeader {
         self.finish_impl(true)
     }
-}
-
-/// Generate `Authorization` header for OAuth.
-/// The return value starts with `"OAuth "`.
-///
-/// # Panics
-/// This function will panic if:
-/// - either `token` or `token_secret` is specified.
-/// - `timestamp` is not valid for u64.
-/// - `url` is not valid for HTTP or HTTPS.
-#[deprecated(since = "1.0.0", note = "Use OAuthAuthorizationHeaderBuilder")]
-pub fn authorization_header<P>(method: &str, url: Url, realm: Option<&str>,
-    consumer_key: &str, consumer_secret: &str, token: Option<&str>,
-    token_secret: Option<&str>, signature_method: SignatureMethod,
-    timestamp: &str, nonce: &str, callback: Option<&str>,
-    verifier: Option<&str>, params: P)
-    -> String where P: Iterator<Item = (String, String)>
-{
-    let mut builder = OAuthAuthorizationHeaderBuilder::new(method, &url, consumer_key, consumer_secret, signature_method);
-
-    builder.request_parameters(params)
-        .timestamp(timestamp.parse().expect("Couldn't parse `timestamp` parameter"))
-        .nonce(nonce);
-
-    match (token, token_secret) {
-        (Some(x), Some(y)) => { builder.token(x, y); },
-        (None, None) => (),
-        _ => panic!("Both `token` and `token_secret` parameter are required")
-    }
-
-    if let Some(x) = realm { builder.realm(x); }
-    if let Some(x) = callback { builder.callback(x); }
-    if let Some(x) = verifier { builder.verifier(x); }
-
-    builder.finish().to_string()
 }

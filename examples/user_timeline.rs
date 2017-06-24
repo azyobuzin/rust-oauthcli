@@ -1,9 +1,8 @@
-#[cfg(feature = "hyper")]
+extern crate futures;
 extern crate hyper;
 extern crate oauthcli;
-extern crate url;
+extern crate tokio_core;
 
-#[cfg(feature = "hyper")]
 fn main() {
     use std::io::Read;
     use url::Url;
@@ -26,9 +25,4 @@ fn main() {
         .unwrap();
 
     println!("{}", res);
-}
-
-#[cfg(not(feature = "hyper"))]
-fn main() {
-    println!("Comple with `hyper/ssl` feature to run this example")
 }
