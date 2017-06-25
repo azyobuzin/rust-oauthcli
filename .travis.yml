@@ -4,5 +4,5 @@ notifications:
   email: false
 
 script:
-  - cargo build --features hyper
-  - cargo test --features hyper
+  - cargo build
+  - cargo test
