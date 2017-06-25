@@ -1,0 +1,10 @@
+[package]
+name = "ringtest"
+version = "0.1.0"
+authors = ["azyobuzin <azyobuzin@users.sourceforge.jp>"]
+publish = false
+
+[dependencies]
+oauthcli = { path = "../" }
+ring = "0.10"
+url = "1"
