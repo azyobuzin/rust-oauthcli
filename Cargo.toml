@@ -1,6 +1,6 @@
 [package]
 name = "oauthcli"
-version = "2.0.0"
+version = "2.0.0-beta-1"
 authors = ["azyobuzin <azyobuzin@users.sourceforge.jp>"]
 description = "Implementation of OAuth 1.0 (and Twitter's f*ckin' OAuth) Client"
 documentation = "https://docs.rs/oauthcli/2.0.0/oauthcli/"
