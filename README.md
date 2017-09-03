@@ -26,3 +26,7 @@ let header =
 
 assert_eq!(header.to_string(), "OAuth ......")
 ```
+
+# Help me
+`oauthcli` has already reached v1.0.0 although `ring` is not stable.
+What shoud I do for not breaking the compatibility?
